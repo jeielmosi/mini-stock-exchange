@@ -1,0 +1,6 @@
+*.md
+go.sum
+kilo.jsonc
+
+!*/
+!*/README.md
