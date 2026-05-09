@@ -37,7 +37,7 @@ func SetupTestDB(ctx context.Context) (*sql.DB, func()) {
 		log.Fatalf("failed to open db: %s", err)
 	}
 
-	// Apply schema
+	// TODO Apply all schemas
 	_, filename, _, _ := runtime.Caller(0)
 	migrationsDir := filepath.Join(filepath.Dir(filename), "migrations")
 	schemaPath := filepath.Join(migrationsDir, "000001_init_schema.up.sql")

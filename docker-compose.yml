@@ -21,6 +21,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  migration:
+    image: migrate/migrate
+    volumes:
+      - ./internal/repository/migrations:/migrations
+    command: ["-path=/migrations", "-database", "postgres://postgres:postgres@db:5432/stockexchange?sslmode=disable", "up"]
+    depends_on:
+      - db
+
   prometheus:
     image: prom/prometheus
     ports:

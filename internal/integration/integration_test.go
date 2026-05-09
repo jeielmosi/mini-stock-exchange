@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"mini-stock-exchange/internal/controller"
 	"mini-stock-exchange/internal/domain"
-	"mini-stock-exchange/internal/handler"
+	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/repository"
 	order_service "mini-stock-exchange/internal/service/order-service"
 
@@ -29,10 +30,10 @@ func setupTestServer() (*httptest.Server, repository.OrderRepository, repository
 	tradeRepo := repository.NewTradeRepository(db)
 	orchestrator := order_service.NewOrchestrator(orderRepo, tradeRepo)
 	orderService := order_service.NewOrderService(orderRepo, tradeRepo, orchestrator)
-	orderHandler := handler.NewOrderHandler(orderService)
+	orderController := controller.NewOrderController(orderService)
 
 	r := chi.NewRouter()
-	orderHandler.RegisterRoutes(r)
+	orderController.RegisterRoutes(r)
 
 	server := httptest.NewServer(r)
 
@@ -47,29 +48,32 @@ func TestOrderFlow(t *testing.T) {
 	defer cleanup()
 
 	symbol := "AAPL"
-	bidPrice := decimal.NewFromInt(150)
-	askPrice := decimal.NewFromInt(140)
+	bidPrice := float64(150)
+	askPrice := float64(140)
 
 	// 1. Submit an Ask order
 	askRequest := map[string]interface{}{
 		"broker_id":   "broker1",
 		"owner_doc":   "doc1",
-		"type":        "ASK",
+		"type":        domain.Ask,
 		"symbol":      symbol,
-		"price":       askPrice.String(),
+		"price":       askPrice,
 		"quantity":    10,
-		"valid_until": time.Now().Add(time.Hour).Format(time.RFC3339),
+		"valid_until": time.Now().Format(time.DateOnly),
 	}
-	body, _ := json.Marshal(askRequest)
+
+	body, err := json.Marshal(askRequest)
+	require.NoError(t, err)
 	resp, err := http.Post(server.URL+"/orders", "application/json", bytes.NewBuffer(body))
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
-	var askResp map[string]string
-	err = json.NewDecoder(resp.Body).Decode(&askResp)
-	require.NoError(t, err)
-	askID, ok := askResp["id"]
-	require.True(t, ok)
+	var respDTO dto.CreateOrderResponse
+	err = json.NewDecoder(resp.Body).Decode(&respDTO)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, respDTO.ID)
+
+	askID := respDTO.ID
 
 	// Verify Ask order is in DB
 	askOrder, err := orderRepo.GetByID(uuid.MustParse(askID))
@@ -84,11 +88,13 @@ func TestOrderFlow(t *testing.T) {
 		"owner_doc":   "doc2",
 		"type":        "BID",
 		"symbol":      symbol,
-		"price":       bidPrice.String(),
+		"price":       bidPrice,
 		"quantity":    10,
-		"valid_until": time.Now().Add(time.Hour).Format(time.RFC3339),
+		"valid_until": time.Now().Format(time.DateOnly),
 	}
-	body, _ = json.Marshal(bidRequest)
+
+	body, err = json.Marshal(bidRequest)
+	require.NoError(t, err)
 	resp, err = http.Post(server.URL+"/orders", "application/json", bytes.NewBuffer(body))
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -119,7 +125,7 @@ func TestOrderFlow(t *testing.T) {
 	trades, err := tradeRepo.GetByOrderID(uuid.MustParse(bidID))
 	require.NoError(t, err)
 	assert.Len(t, trades, 1)
-	assert.True(t, trades[0].Price.Equal(askPrice))
+	assert.True(t, trades[0].Price.Equal(decimal.NewFromFloat(askPrice)))
 }
 
 func TestOrderNotFound(t *testing.T) {
@@ -137,8 +143,8 @@ func TestOrderNoMatch(t *testing.T) {
 	defer cleanup()
 
 	symbol := "AAPL"
-	bidPrice := decimal.NewFromInt(100)
-	askPrice := decimal.NewFromInt(110)
+	bidPrice := float64(100)
+	askPrice := float64(110)
 
 	// 1. Submit an Ask order
 	askRequest := map[string]interface{}{
@@ -146,11 +152,12 @@ func TestOrderNoMatch(t *testing.T) {
 		"owner_doc":   "doc1",
 		"type":        "ASK",
 		"symbol":      symbol,
-		"price":       askPrice.String(),
+		"price":       askPrice,
 		"quantity":    10,
-		"valid_until": time.Now().Add(time.Hour).Format(time.RFC3339),
+		"valid_until": time.Now().Format(time.DateOnly),
 	}
-	body, _ := json.Marshal(askRequest)
+	body, err := json.Marshal(askRequest)
+	require.NoError(t, err)
 	resp, err := http.Post(server.URL+"/orders", "application/json", bytes.NewBuffer(body))
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -167,11 +174,12 @@ func TestOrderNoMatch(t *testing.T) {
 		"owner_doc":   "doc2",
 		"type":        "BID",
 		"symbol":      symbol,
-		"price":       bidPrice.String(),
+		"price":       bidPrice,
 		"quantity":    10,
-		"valid_until": time.Now().Add(time.Hour).Format(time.RFC3339),
+		"valid_until": time.Now().Format(time.DateOnly),
 	}
-	body, _ = json.Marshal(bidRequest)
+	body, err = json.Marshal(bidRequest)
+	require.NoError(t, err)
 	resp, err = http.Post(server.URL+"/orders", "application/json", bytes.NewBuffer(body))
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -204,8 +212,8 @@ func TestOrderPartialFill(t *testing.T) {
 	defer cleanup()
 
 	symbol := "AAPL"
-	bidPrice := decimal.NewFromInt(150)
-	askPrice := decimal.NewFromInt(140)
+	bidPrice := float64(150)
+	askPrice := float64(140)
 
 	// 1. Submit an Ask order for 10
 	askRequest := map[string]interface{}{
@@ -213,11 +221,12 @@ func TestOrderPartialFill(t *testing.T) {
 		"owner_doc":   "doc1",
 		"type":        "ASK",
 		"symbol":      symbol,
-		"price":       askPrice.String(),
+		"price":       askPrice,
 		"quantity":    10,
-		"valid_until": time.Now().Add(time.Hour).Format(time.RFC3339),
+		"valid_until": time.Now().Format(time.DateOnly),
 	}
-	body, _ := json.Marshal(askRequest)
+	body, err := json.Marshal(askRequest)
+	require.NoError(t, err)
 	resp, err := http.Post(server.URL+"/orders", "application/json", bytes.NewBuffer(body))
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -234,11 +243,13 @@ func TestOrderPartialFill(t *testing.T) {
 		"owner_doc":   "doc2",
 		"type":        "BID",
 		"symbol":      symbol,
-		"price":       bidPrice.String(),
+		"price":       bidPrice,
 		"quantity":    5,
-		"valid_until": time.Now().Add(time.Hour).Format(time.RFC3339),
+		"valid_until": time.Now().Format(time.DateOnly),
 	}
-	body, _ = json.Marshal(bidRequest)
+
+	body, err = json.Marshal(bidRequest)
+	require.NoError(t, err)
 	resp, err = http.Post(server.URL+"/orders", "application/json", bytes.NewBuffer(body))
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -270,5 +281,5 @@ func TestOrderPartialFill(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, trades, 1)
 	assert.Equal(t, 5, trades[0].Quantity)
-	assert.True(t, trades[0].Price.Equal(askPrice))
+	assert.True(t, trades[0].Price.Equal(decimal.NewFromFloat(askPrice)))
 }

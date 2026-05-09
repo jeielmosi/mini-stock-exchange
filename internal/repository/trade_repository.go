@@ -22,6 +22,7 @@ func NewTradeRepository(db *sql.DB) TradeRepository {
 	return &postgresTradeRepository{db: db}
 }
 
+// TODO IT SHOULD BE  A TRANSACTION, not just a single request
 func (r *postgresTradeRepository) Create(trade domain.Trade) error {
 	query := `INSERT INTO trades (id, buy_order_id, sell_order_id, symbol, price, quantity, executed_at) 
 	          VALUES ($1, $2, $3, $4, $5, $6, $7)`

@@ -38,12 +38,13 @@ func (o *orchestrator) RouteOrder(ctx context.Context, order domain.Order) error
 		// Double-check after acquiring write lock
 		executor, ok = o.executors[order.Symbol]
 		if !ok {
-			executor, err := NewExecutor(order.Symbol, o.orderRepo, o.tradeRepo)
-			if err != nil {
-				o.mu.Unlock()
-				return err
-			}
-			o.executors[order.Symbol] = executor
+				var err error
+				executor, err = NewExecutor(order.Symbol, o.orderRepo, o.tradeRepo)
+				if err != nil {
+					o.mu.Unlock()
+					return err
+				}
+				o.executors[order.Symbol] = executor
 		}
 		o.mu.Unlock()
 	}

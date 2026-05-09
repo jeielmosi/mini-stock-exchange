@@ -54,9 +54,10 @@ func TestOrderService_SubmitOrder_Match(t *testing.T) {
 		// For now, let's just make sure centralizer is called.
 	})
 
-	err := svc.SubmitOrder(context.Background(), *bidOrder)
+	dto, err := svc.SubmitOrder(context.Background(), *bidOrder)
 
 	assert.NoError(t, err)
+	assert.NotEmpty(t, dto.ID)
 	orderRepo.AssertExpectations(t)
 	centralizer.AssertExpectations(t)
 }
@@ -79,9 +80,10 @@ func TestOrderService_SubmitOrder_PartialMatch(t *testing.T) {
 
 	centralizer.On("RouteOrder", mock.Anything, mock.Anything).Return(nil)
 
-	err := svc.SubmitOrder(context.Background(), *bidOrder)
+	dto, err := svc.SubmitOrder(context.Background(), *bidOrder)
 
 	assert.NoError(t, err)
+	assert.NotEmpty(t, dto.ID)
 	orderRepo.AssertExpectations(t)
 	centralizer.AssertExpectations(t)
 }
@@ -104,9 +106,10 @@ func TestOrderService_SubmitOrder_NoMatch(t *testing.T) {
 
 	centralizer.On("RouteOrder", mock.Anything, mock.Anything).Return(nil)
 
-	err := svc.SubmitOrder(context.Background(), *bidOrder)
+	dto, err := svc.SubmitOrder(context.Background(), *bidOrder)
 
 	assert.NoError(t, err)
+	assert.NotEmpty(t, dto.ID)
 	orderRepo.AssertExpectations(t)
 	centralizer.AssertExpectations(t)
 }
@@ -129,9 +132,10 @@ func TestOrderService_SubmitOrder_MultipleMatches(t *testing.T) {
 
 	centralizer.On("RouteOrder", mock.Anything, mock.Anything).Return(nil)
 
-	err := svc.SubmitOrder(context.Background(), *bidOrder)
+	dto, err := svc.SubmitOrder(context.Background(), *bidOrder)
 
 	assert.NoError(t, err)
+	assert.NotEmpty(t, dto.ID)
 	orderRepo.AssertExpectations(t)
 	centralizer.AssertExpectations(t)
 }
@@ -154,9 +158,10 @@ func TestOrderService_SubmitOrder_AskMatch(t *testing.T) {
 
 	centralizer.On("RouteOrder", mock.Anything, mock.Anything).Return(nil)
 
-	err := svc.SubmitOrder(context.Background(), *askOrder)
+	dto, err := svc.SubmitOrder(context.Background(), *askOrder)
 
 	assert.NoError(t, err)
+	assert.NotEmpty(t, dto.ID)
 	orderRepo.AssertExpectations(t)
 	centralizer.AssertExpectations(t)
 }

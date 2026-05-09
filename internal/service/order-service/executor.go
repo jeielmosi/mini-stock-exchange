@@ -124,6 +124,7 @@ func (e *executor) matchMake(order domain.Order) {
 	for _, match := range dto.Matches {
 		if err := e.match(&order, &match); err != nil {
 			slog.Error("failed to match order", "error", err, "order_id", order.ID, "match_id", match.ID)
+			panic(err)
 		}
 		if 0 < match.RemainingQuantity {
 			matchHeap.Push(match)
@@ -135,6 +136,7 @@ func (e *executor) matchMake(order domain.Order) {
 	}
 }
 
+// TODO should be a trasanction
 func (e *executor) match(bid *domain.Order, ask *domain.Order) error {
 	if bid == nil || ask == nil {
 		return fmt.Errorf("nil order")

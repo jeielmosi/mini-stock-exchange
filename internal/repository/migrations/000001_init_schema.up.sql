@@ -25,10 +25,10 @@ CREATE TABLE trades (
     executed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_orders_ask_matching
+CREATE INDEX idx_orders_ask
 ON orders (symbol, type, status, price ASC, created_at ASC)
 WHERE type = 'ASK' AND status IN ('PENDING', 'PARTIAL');
 
-CREATE INDEX idx_orders_bid_matching
+CREATE INDEX idx_orders_bid
 ON orders (symbol, type, status, price DESC, created_at ASC)
 WHERE type = 'BID' AND status IN ('PENDING', 'PARTIAL');
