@@ -16,8 +16,3 @@ type Trade struct {
 	Quantity    int
 	ExecutedAt  time.Time
 }
-
-type TradeRepository interface {
-	Create(trade *Trade) error
-	GetByOrderID(orderID uuid.UUID) ([]*Trade, error)
-}

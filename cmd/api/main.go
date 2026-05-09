@@ -11,7 +11,7 @@ import (
 	"mini-stock-exchange/internal/handler"
 	"mini-stock-exchange/internal/observability"
 	"mini-stock-exchange/internal/repository"
-	"mini-stock-exchange/internal/service"
+	order_service "mini-stock-exchange/internal/service/order-service"
 
 	"github.com/go-chi/chi/v5"
 	_ "github.com/lib/pq"
@@ -44,7 +44,8 @@ func main() {
 
 	orderRepo := repository.NewOrderRepository(db)
 	tradeRepo := repository.NewTradeRepository(db)
-	orderService := service.NewOrderService(orderRepo, tradeRepo)
+	centralizer := order_service.NewOrchestrator(orderRepo, tradeRepo)
+	orderService := order_service.NewOrderService(orderRepo, tradeRepo, centralizer)
 	orderHandler := handler.NewOrderHandler(orderService)
 
 	r := chi.NewRouter()

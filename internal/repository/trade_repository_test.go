@@ -22,7 +22,7 @@ func TestTradeRepository(t *testing.T) {
 	tradeRepo := NewTradeRepository(db)
 
 	t.Run("Create and GetByOrderID", func(t *testing.T) {
-		buyOrder := &domain.Order{
+		buyOrder := domain.Order{
 			ID:                uuid.New(),
 			BrokerID:          "b1",
 			OwnerDoc:          "d1",
@@ -35,7 +35,7 @@ func TestTradeRepository(t *testing.T) {
 			Status:            domain.Pending,
 			CreatedAt:         time.Now().UTC().Truncate(time.Microsecond),
 		}
-		sellOrder := &domain.Order{
+		sellOrder := domain.Order{
 			ID:                uuid.New(),
 			BrokerID:          "b2",
 			OwnerDoc:          "d2",
@@ -49,10 +49,10 @@ func TestTradeRepository(t *testing.T) {
 			CreatedAt:         time.Now().UTC().Truncate(time.Microsecond),
 		}
 
-		require.NoError(t, orderRepo.Create(buyOrder))
-		require.NoError(t, orderRepo.Create(sellOrder))
+		require.NoError(t, orderRepo.Insert(buyOrder))
+		require.NoError(t, orderRepo.Insert(sellOrder))
 
-		trade := &domain.Trade{
+		trade := domain.Trade{
 			ID:          uuid.New(),
 			BuyOrderID:  buyOrder.ID,
 			SellOrderID: sellOrder.ID,

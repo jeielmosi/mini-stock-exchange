@@ -20,11 +20,3 @@ type Order struct {
 	Status            OrderStatus
 	CreatedAt         time.Time
 }
-
-type OrderRepository interface {
-	Create(order *Order) error
-	GetByID(id uuid.UUID) (*Order, error)
-	Update(order *Order) error
-	FindMatches(order Order) ([]Order, error)
-	UpdateRemainingQuantity(id uuid.UUID, quantity int, status OrderStatus) error
-}

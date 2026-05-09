@@ -12,7 +12,7 @@ import (
 	"mini-stock-exchange/internal/domain"
 	"mini-stock-exchange/internal/handler"
 	"mini-stock-exchange/internal/repository"
-	"mini-stock-exchange/internal/service"
+	order_service "mini-stock-exchange/internal/service/order-service"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -21,13 +21,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestServer(t *testing.T) (*httptest.Server, domain.OrderRepository, domain.TradeRepository, func()) {
+func setupTestServer() (*httptest.Server, repository.OrderRepository, repository.TradeRepository, func()) {
 	ctx := context.Background()
 	db, cleanup := repository.SetupTestDB(ctx)
 
 	orderRepo := repository.NewOrderRepository(db)
 	tradeRepo := repository.NewTradeRepository(db)
-	orderService := service.NewOrderService(orderRepo, tradeRepo)
+	orchestrator := order_service.NewOrchestrator(orderRepo, tradeRepo)
+	orderService := order_service.NewOrderService(orderRepo, tradeRepo, orchestrator)
 	orderHandler := handler.NewOrderHandler(orderService)
 
 	r := chi.NewRouter()
@@ -42,7 +43,7 @@ func setupTestServer(t *testing.T) (*httptest.Server, domain.OrderRepository, do
 }
 
 func TestOrderFlow(t *testing.T) {
-	server, orderRepo, tradeRepo, cleanup := setupTestServer(t)
+	server, orderRepo, tradeRepo, cleanup := setupTestServer()
 	defer cleanup()
 
 	symbol := "AAPL"
@@ -122,7 +123,7 @@ func TestOrderFlow(t *testing.T) {
 }
 
 func TestOrderNotFound(t *testing.T) {
-	server, _, _, cleanup := setupTestServer(t)
+	server, _, _, cleanup := setupTestServer()
 	defer cleanup()
 
 	nonExistentID := uuid.New().String()
@@ -132,7 +133,7 @@ func TestOrderNotFound(t *testing.T) {
 }
 
 func TestOrderNoMatch(t *testing.T) {
-	server, orderRepo, _, cleanup := setupTestServer(t)
+	server, orderRepo, _, cleanup := setupTestServer()
 	defer cleanup()
 
 	symbol := "AAPL"
@@ -199,7 +200,7 @@ func TestOrderNoMatch(t *testing.T) {
 }
 
 func TestOrderPartialFill(t *testing.T) {
-	server, orderRepo, tradeRepo, cleanup := setupTestServer(t)
+	server, orderRepo, tradeRepo, cleanup := setupTestServer()
 	defer cleanup()
 
 	symbol := "AAPL"

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"mini-stock-exchange/internal/domain"
-	"mini-stock-exchange/internal/service"
+	order_service "mini-stock-exchange/internal/service/order-service"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -14,10 +14,10 @@ import (
 )
 
 type OrderHandler struct {
-	service *service.OrderService
+	service order_service.OrderService
 }
 
-func NewOrderHandler(service *service.OrderService) *OrderHandler {
+func NewOrderHandler(service order_service.OrderService) *OrderHandler {
 	return &OrderHandler{service: service}
 }
 
@@ -44,7 +44,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order := &domain.Order{
+	order := domain.Order{
 		BrokerID:   req.BrokerID,
 		OwnerDoc:   req.OwnerDoc,
 		Type:       req.Type,
@@ -71,7 +71,7 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order, err := h.service.GetOrderStatus(id)
+	order, err := h.service.GetOrder(id)
 	if err != nil {
 		http.Error(w, "order not found", http.StatusNotFound)
 		return
