@@ -2,18 +2,12 @@ package repository
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
-	"os"
+	"mini-stock-exchange/internal/config"
 )
 
 func NewDatabase() (*sql.DB, error) {
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		return nil, errors.New("no DATABASE_URL found")
-	}
-
-	db, err := sql.Open("postgres", dbURL)
+	db, err := sql.Open("postgres", config.ENV.DatabaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to db: %v", err)
 	}

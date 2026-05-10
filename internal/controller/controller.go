@@ -2,8 +2,8 @@ package controller
 
 import (
 	"database/sql"
+	match_service "mini-stock-exchange/internal/domain-service/match-service"
 	"mini-stock-exchange/internal/repository"
-	order_service "mini-stock-exchange/internal/service/order-service"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -14,11 +14,10 @@ type Controller interface {
 
 func RegisterRoutes(r chi.Router, db *sql.DB) {
 	orderRepo := repository.NewOrderRepository(db)
-	tradeRepo := repository.NewTradeRepository(db)
-	orchestrator := order_service.NewOrchestrator(orderRepo, tradeRepo)
-	orderService := order_service.NewOrderService(orderRepo, tradeRepo, orchestrator)
+	orchestrator := match_service.NewOrchestrator(orderRepo)
+	matchService := match_service.NewMatchService(orderRepo, orchestrator)
 
-	orderController := NewOrderController(orderService)
+	orderController := NewOrderController(matchService)
 	orderController.RegisterRoutes(r)
 
 	healthController := NewHealthController()

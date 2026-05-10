@@ -1,5 +1,8 @@
 .PHONY: up down migrate
 
+build:
+	docker compose build
+
 up:
 	docker compose up -d
 
@@ -9,5 +12,5 @@ down:
 migrate:
 	docker compose run --rm migration
 
-script:
+script: build
 	python3 ./scripts/test_order.py

@@ -1,6 +1,7 @@
-package domain
+package entity
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,6 +30,9 @@ func NewOrder(
 	uuid, err := uuid.NewV7()
 	if err != nil {
 		return Order{}, err
+	}
+	if validUntil.Before(time.Now()) {
+		return Order{}, fmt.Errorf("order already expirated")
 	}
 	return Order{
 		ID:                uuid,

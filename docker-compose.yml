@@ -6,6 +6,7 @@ services:
       - "8080:8080"
     environment:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/stockexchange?sslmode=disable
+      - EXECUTOR_CAPACITY=1024
     depends_on:
       - db
       - tempo
@@ -20,6 +21,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+  # TODO save the database defore down
 
   migration:
     image: migrate/migrate
@@ -28,7 +30,6 @@ services:
     command: ["-path=/migrations", "-database", "postgres://postgres:postgres@db:5432/stockexchange?sslmode=disable", "up"]
     depends_on:
       - db
-
   prometheus:
     image: prom/prometheus
     ports:

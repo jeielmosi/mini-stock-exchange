@@ -1,11 +1,10 @@
 package order_heaps
 
 import (
-	"errors"
 	"testing"
 	"time"
 
-	"mini-stock-exchange/internal/domain"
+	"mini-stock-exchange/internal/entity"
 	"mini-stock-exchange/internal/repository"
 
 	"github.com/google/uuid"
@@ -13,33 +12,45 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func newBidHeap(symbol string, capacity int, orderRepo repository.OrderRepository) *BidHeap {
+	return &BidHeap{
+		heap:      newOrderHeap(capacity, greaterOrder),
+		orderRepo: orderRepo,
+		symbol:    symbol,
+	}
+}
+
 func TestNewBidHeap(t *testing.T) {
 	symbol := "AAPL"
 	now := time.Now().UTC()
 
 	t.Run("Success", func(t *testing.T) {
-		repo := new(repository.MockOrderRepository)
-		orders := []domain.Order{
+		repo, cleanup := repository.NewMockOrderRepository()
+		defer cleanup()
+		orders := []entity.Order{
 			{
-				ID:        uuid.New(),
-				Symbol:    symbol,
-				Price:     decimal.NewFromInt(150),
-				CreatedAt: now.Add(time.Minute),
-				Type:      domain.Bid,
+				ID:         uuid.New(),
+				Symbol:     symbol,
+				Price:      decimal.NewFromInt(150),
+				CreatedAt:  now.Add(time.Minute),
+				Type:       entity.Bid,
+				ValidUntil: now.Add(24 * time.Hour),
 			},
 			{
-				ID:        uuid.New(),
-				Symbol:    symbol,
-				Price:     decimal.NewFromInt(200),
-				CreatedAt: now,
-				Type:      domain.Bid,
+				ID:         uuid.New(),
+				Symbol:     symbol,
+				Price:      decimal.NewFromInt(200),
+				CreatedAt:  now,
+				Type:       entity.Bid,
+				ValidUntil: now.Add(24 * time.Hour),
 			},
 			{
-				ID:        uuid.New(),
-				Symbol:    symbol,
-				Price:     decimal.NewFromInt(200),
-				CreatedAt: now.Add(-time.Minute),
-				Type:      domain.Bid,
+				ID:         uuid.New(),
+				Symbol:     symbol,
+				Price:      decimal.NewFromInt(200),
+				CreatedAt:  now.Add(-time.Minute),
+				Type:       entity.Bid,
+				ValidUntil: now.Add(24 * time.Hour),
 			},
 		}
 		// Note: In bid-heap.go, it incorrectly calls GetAsks instead of GetBids.
@@ -50,47 +61,33 @@ func TestNewBidHeap(t *testing.T) {
 		// I'll write the test to expect GetAsks for now as it's what's implemented,
 		// or maybe I should fix it first.
 		// Let's see what GetAsks returns.
-		repo.On("GetBids", symbol).Return(orders, nil)
 
-		heap, err := NewBidHeap(symbol, repo)
+		bh := newBidHeap(symbol, 10, repo)
 
-		assert.NoError(t, err)
-		assert.NotNil(t, heap)
+		assert.NotNil(t, bh)
 
 		// The heap should be ordered by Price (descending) and then CreatedAt (ascending)
 		// 1st: Price 200, CreatedAt now - 1m
 		// 2nd: Price 200, CreatedAt now
 		// 3rd: Price 150, CreatedAt now + 1m
+		for _, o := range orders {
+			bh.Push(o)
+		}
 
-		o1, ok := heap.Peek()
+		o1, ok := bh.heap.Peek()
 		assert.True(t, ok)
 		assert.True(t, o1.Price.Equal(decimal.NewFromInt(200)))
 		assert.True(t, o1.CreatedAt.Before(now))
 
-		heap.Pop()
-		o2, ok := heap.Peek()
+		bh.heap.Drop()
+		o2, ok := bh.heap.Peek()
 		assert.True(t, ok)
 		assert.True(t, o2.Price.Equal(decimal.NewFromInt(200)))
 		assert.True(t, o2.CreatedAt.Equal(now))
 
-		heap.Pop()
-		o3, ok := heap.Peek()
+		bh.heap.Drop()
+		o3, ok := bh.heap.Peek()
 		assert.True(t, ok)
 		assert.True(t, o3.Price.Equal(decimal.NewFromInt(150)))
-
-		repo.AssertExpectations(t)
-	})
-
-	t.Run("Repository Error", func(t *testing.T) {
-		repo := new(repository.MockOrderRepository)
-		repo.On("GetBids", symbol).Return([]domain.Order{}, errors.New("db error"))
-
-		heap, err := NewBidHeap(symbol, repo)
-
-		assert.Error(t, err)
-		assert.Nil(t, heap)
-		assert.Equal(t, "db error", err.Error())
-
-		repo.AssertExpectations(t)
 	})
 }

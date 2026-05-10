@@ -4,28 +4,47 @@ import (
 	"testing"
 	"time"
 
-	"mini-stock-exchange/internal/domain"
+	"mini-stock-exchange/internal/entity"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 )
 
-func newTestHeap(cmp func(a *domain.Order, b *domain.Order) bool) OrderHeap {
+func newTestHeap(cmp func(a *entity.Order, b *entity.Order) bool) *orderHeap {
 	return &orderHeap{
-		heap: []domain.Order{},
+		heap: []entity.Order{},
 		cmp:  cmp,
 	}
 }
 
-func TestOrderHeap_PushPopPeek(t *testing.T) {
-	// Max heap by price
-	cmp := func(a, b *domain.Order) bool {
+func TestOrderHeap_PopBack(t *testing.T) {
+	cmp := func(a, b *entity.Order) bool {
 		return a.Price.GreaterThan(b.Price)
 	}
 	oh := newTestHeap(cmp)
 
-	orders := []domain.Order{
+	// PopBack on empty heap
+	_, ok := oh.PopBack()
+	assert.False(t, ok)
+
+	order := entity.Order{Price: decimal.NewFromInt(100), ID: uuid.New()}
+	oh.heap = append(oh.heap, order)
+
+	popped, ok := oh.PopBack()
+	assert.True(t, ok)
+	assert.Equal(t, order.ID, popped.ID)
+	assert.Equal(t, 0, oh.Len())
+}
+
+func TestOrderHeap_PushPopPeek(t *testing.T) {
+	// Max heap by price
+	cmp := func(a, b *entity.Order) bool {
+		return a.Price.GreaterThan(b.Price)
+	}
+	oh := newTestHeap(cmp)
+
+	orders := []entity.Order{
 		{Price: decimal.NewFromInt(100), ID: uuid.New()},
 		{Price: decimal.NewFromInt(200), ID: uuid.New()},
 		{Price: decimal.NewFromInt(150), ID: uuid.New()},
@@ -35,23 +54,26 @@ func TestOrderHeap_PushPopPeek(t *testing.T) {
 		oh.Push(o)
 	}
 
+	assert.Equal(t, 3, oh.Len())
+
 	peeked, ok := oh.Peek()
 	assert.True(t, ok)
 	assert.Equal(t, decimal.NewFromInt(200), peeked.Price)
 
-	oh.Pop()
+	oh.Drop()
 	peeked, ok = oh.Peek()
 	assert.True(t, ok)
 	assert.Equal(t, decimal.NewFromInt(150), peeked.Price)
 
-	oh.Pop()
+	oh.Drop()
 	peeked, ok = oh.Peek()
 	assert.True(t, ok)
 	assert.Equal(t, decimal.NewFromInt(100), peeked.Price)
 
-	oh.Pop()
+	oh.Drop()
 	_, ok = oh.Peek()
 	assert.False(t, ok)
+	assert.Equal(t, 0, oh.Len())
 }
 
 func TestCouldMatch(t *testing.T) {
@@ -59,8 +81,8 @@ func TestCouldMatch(t *testing.T) {
 	bidPrice110 := decimal.NewFromInt(110)
 	askPrice100 := decimal.NewFromInt(100)
 
-	bid := domain.Order{Type: domain.Bid, Price: bidPrice100}
-	ask := domain.Order{Type: domain.Ask, Price: askPrice100}
+	bid := entity.Order{Type: entity.Bid, Price: bidPrice100}
+	ask := entity.Order{Type: entity.Ask, Price: askPrice100}
 
 	t.Run("Bid and Ask same price", func(t *testing.T) {
 		assert.True(t, couldMatch(&bid, &ask))
@@ -82,7 +104,7 @@ func TestCouldMatch(t *testing.T) {
 	})
 
 	t.Run("Same type (Bid, Bid)", func(t *testing.T) {
-		bid2 := domain.Order{Type: domain.Bid, Price: bidPrice100}
+		bid2 := entity.Order{Type: entity.Bid, Price: bidPrice100}
 		assert.False(t, couldMatch(&bid, &bid2))
 	})
 
@@ -94,14 +116,14 @@ func TestCouldMatch(t *testing.T) {
 
 func TestOrderHeap_MatchMake(t *testing.T) {
 	// For matching Bids, we want a Min-Heap of Asks (lowest price first)
-	cmpAsk := func(a, b *domain.Order) bool {
+	cmpAsk := func(a, b *entity.Order) bool {
 		return a.Price.LessThan(b.Price)
 	}
 
 	t.Run("Successful match", func(t *testing.T) {
 		oh := newTestHeap(cmpAsk)
-		ask := domain.Order{
-			Type:       domain.Ask,
+		ask := entity.Order{
+			Type:       entity.Ask,
 			Price:      decimal.NewFromInt(100),
 			Quantity:   10,
 			ValidUntil: time.Now().Add(time.Hour),
@@ -109,22 +131,22 @@ func TestOrderHeap_MatchMake(t *testing.T) {
 		}
 		oh.Push(ask)
 
-		bid := domain.Order{
-			Type:     domain.Bid,
+		bid := entity.Order{
+			Type:     entity.Bid,
 			Price:    decimal.NewFromInt(110),
 			Quantity: 10,
 			OwnerDoc: "owner2",
 		}
 
-		res := oh.MatchMake(bid)
+		res := oh.Pop(bid)
 		assert.Len(t, res.Matches, 1)
 		assert.Equal(t, ask.ID, res.Matches[0].ID)
 	})
 
 	t.Run("No match due to price", func(t *testing.T) {
 		oh := newTestHeap(cmpAsk)
-		ask := domain.Order{
-			Type:       domain.Ask,
+		ask := entity.Order{
+			Type:       entity.Ask,
 			Price:      decimal.NewFromInt(120),
 			Quantity:   10,
 			ValidUntil: time.Now().Add(time.Hour),
@@ -132,21 +154,21 @@ func TestOrderHeap_MatchMake(t *testing.T) {
 		}
 		oh.Push(ask)
 
-		bid := domain.Order{
-			Type:     domain.Bid,
+		bid := entity.Order{
+			Type:     entity.Bid,
 			Price:    decimal.NewFromInt(110),
 			Quantity: 10,
 			OwnerDoc: "owner2",
 		}
 
-		res := oh.MatchMake(bid)
+		res := oh.Pop(bid)
 		assert.Len(t, res.Matches, 0)
 	})
 
 	t.Run("Expired order", func(t *testing.T) {
 		oh := newTestHeap(cmpAsk)
-		ask := domain.Order{
-			Type:       domain.Ask,
+		ask := entity.Order{
+			Type:       entity.Ask,
 			Price:      decimal.NewFromInt(100),
 			Quantity:   10,
 			ValidUntil: time.Now().Add(-time.Hour),
@@ -154,23 +176,22 @@ func TestOrderHeap_MatchMake(t *testing.T) {
 		}
 		oh.Push(ask)
 
-		bid := domain.Order{
-			Type:     domain.Bid,
+		bid := entity.Order{
+			Type:     entity.Bid,
 			Price:    decimal.NewFromInt(110),
 			Quantity: 10,
 			OwnerDoc: "owner2",
 		}
 
-		res := oh.MatchMake(bid)
+		res := oh.Pop(bid)
 		assert.Len(t, res.Matches, 0)
 		assert.Len(t, res.Expired, 1)
-		assert.Equal(t, domain.Expired, res.Expired[0].Status)
 	})
 
 	t.Run("Same owner match prevention", func(t *testing.T) {
 		oh := newTestHeap(cmpAsk)
-		ask := domain.Order{
-			Type:       domain.Ask,
+		ask := entity.Order{
+			Type:       entity.Ask,
 			Price:      decimal.NewFromInt(100),
 			Quantity:   10,
 			ValidUntil: time.Now().Add(time.Hour),
@@ -178,14 +199,14 @@ func TestOrderHeap_MatchMake(t *testing.T) {
 		}
 		oh.Push(ask)
 
-		bid := domain.Order{
-			Type:     domain.Bid,
+		bid := entity.Order{
+			Type:     entity.Bid,
 			Price:    decimal.NewFromInt(110),
 			Quantity: 10,
 			OwnerDoc: "owner1",
 		}
 
-		res := oh.MatchMake(bid)
+		res := oh.Pop(bid)
 		assert.Len(t, res.Matches, 0)
 
 		// Verify the order was pushed back
@@ -196,8 +217,8 @@ func TestOrderHeap_MatchMake(t *testing.T) {
 
 	t.Run("Partial match quantity", func(t *testing.T) {
 		oh := newTestHeap(cmpAsk)
-		ask := domain.Order{
-			Type:       domain.Ask,
+		ask := entity.Order{
+			Type:       entity.Ask,
 			Price:      decimal.NewFromInt(100),
 			Quantity:   5,
 			ValidUntil: time.Now().Add(time.Hour),
@@ -205,18 +226,36 @@ func TestOrderHeap_MatchMake(t *testing.T) {
 		}
 		oh.Push(ask)
 
-		bid := domain.Order{
-			Type:     domain.Bid,
+		bid := entity.Order{
+			Type:     entity.Bid,
 			Price:    decimal.NewFromInt(110),
 			Quantity: 10,
 			OwnerDoc: "owner2",
 		}
 
-		res := oh.MatchMake(bid)
+		res := oh.Pop(bid)
 		assert.Len(t, res.Matches, 1)
 		assert.Equal(t, ask, res.Matches[0])
-		// The current MatchMake implementation doesn't handle partial quantity
-		// correctly in terms of returning the remaining bid quantity,
-		// but it should take the ask.
+	})
+
+	t.Run("Multiple matches", func(t *testing.T) {
+		oh := newTestHeap(cmpAsk)
+		asks := []entity.Order{
+			{Type: entity.Ask, Price: decimal.NewFromInt(100), Quantity: 5, ValidUntil: time.Now().Add(time.Hour), OwnerDoc: "owner1"},
+			{Type: entity.Ask, Price: decimal.NewFromInt(90), Quantity: 5, ValidUntil: time.Now().Add(time.Hour), OwnerDoc: "owner2"},
+		}
+		for _, a := range asks {
+			oh.Push(a)
+		}
+
+		bid := entity.Order{
+			Type:     entity.Bid,
+			Price:    decimal.NewFromInt(110),
+			Quantity: 15,
+			OwnerDoc: "owner3",
+		}
+
+		res := oh.Pop(bid)
+		assert.Len(t, res.Matches, 2)
 	})
 }

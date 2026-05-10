@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 
+	"mini-stock-exchange/internal/config"
 	"mini-stock-exchange/internal/controller"
 	"mini-stock-exchange/internal/observability"
 	"mini-stock-exchange/internal/repository"
@@ -26,6 +27,7 @@ func main() {
 		}
 	}()
 
+	config.Load()
 	db, err := repository.NewDatabase()
 	if err != nil {
 		log.Fatalf("failed to connect to db: %v", err)

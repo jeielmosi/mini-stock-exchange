@@ -1,28 +1,65 @@
 package order_heaps
 
 import (
-	"mini-stock-exchange/internal/domain"
+	"mini-stock-exchange/internal/entity"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
-type MatchDTO struct {
-	Matches []domain.Order
-	Expired []domain.Order
+type OrderHeap interface {
+	Push(order entity.Order)
+	Pop(order entity.Order) (*MatchDTO, error)
 }
 
-type OrderHeap interface {
-	Pop()
-	Peek() (domain.Order, bool)
-	Push(order domain.Order)
-	MatchMake(order domain.Order) MatchDTO
+type MatchDTO struct {
+	Matches []entity.Order
+	Expired []uuid.UUID
+}
+
+type queryTrigger struct {
+	Price     decimal.Decimal
+	CreatedAt time.Time
+}
+
+func newQueryTrigger(order entity.Order) *queryTrigger {
+	return &queryTrigger{
+		Price:     order.Price,
+		CreatedAt: order.CreatedAt,
+	}
 }
 
 type orderHeap struct {
-	heap []domain.Order
-	cmp  func(a *domain.Order, b *domain.Order) bool
+	heap []entity.Order
+	cmp  func(a *entity.Order, b *entity.Order) bool
 }
 
-func (oh *orderHeap) Push(order domain.Order) {
+func newOrderHeap(capacity int, cmp func(a *entity.Order, b *entity.Order) bool) *orderHeap {
+	return &orderHeap{
+		heap: make([]entity.Order, 0, capacity),
+		cmp:  cmp,
+	}
+}
+
+func (oh *orderHeap) Len() int {
+	return len(oh.heap)
+}
+
+func (oh *orderHeap) Cap() int {
+	return cap(oh.heap)
+}
+
+func (oh *orderHeap) PopBack() (entity.Order, bool) {
+	if len(oh.heap) == 0 {
+		return entity.Order{}, false
+	}
+	last := oh.heap[len(oh.heap)-1]
+	oh.heap = oh.heap[:len(oh.heap)-1]
+	return last, true
+}
+
+func (oh *orderHeap) Push(order entity.Order) {
 	child := len(oh.heap)
 	oh.heap = append(oh.heap, order)
 
@@ -37,14 +74,14 @@ func (oh *orderHeap) Push(order domain.Order) {
 	}
 }
 
-func (oh *orderHeap) Peek() (domain.Order, bool) {
+func (oh *orderHeap) Peek() (entity.Order, bool) {
 	if len(oh.heap) == 0 {
-		return domain.Order{}, false
+		return entity.Order{}, false
 	}
 	return oh.heap[0], true
 }
 
-func (oh *orderHeap) Pop() {
+func (oh *orderHeap) Drop() {
 	if len(oh.heap) == 0 {
 		return
 	}
@@ -82,27 +119,27 @@ func (oh *orderHeap) Pop() {
 	}
 }
 
-func couldMatch(bid *domain.Order, ask *domain.Order) bool {
+func couldMatch(bid *entity.Order, ask *entity.Order) bool {
 	if bid == nil || ask == nil {
 		return false
 	}
 
-	if (bid.Type == domain.Ask) && (ask.Type == domain.Bid) {
+	if (bid.Type == entity.Ask) && (ask.Type == entity.Bid) {
 		return couldMatch(ask, bid)
 	}
 
-	if (bid.Type != domain.Bid) || (ask.Type != domain.Ask) {
+	if (bid.Type != entity.Bid) || (ask.Type != entity.Ask) {
 		return false
 	}
 
 	return bid.Price.GreaterThanOrEqual(ask.Price)
 }
 
-func (oh *orderHeap) MatchMake(order domain.Order) MatchDTO {
+func (oh *orderHeap) Pop(order entity.Order) MatchDTO {
 	now := time.Now()
-	retry := []domain.Order{}
-	matches := []domain.Order{}
-	expired := []domain.Order{}
+	retry := []entity.Order{}
+	matches := []entity.Order{}
+	expired := []uuid.UUID{}
 
 	quantity := order.Quantity
 	for 0 < quantity {
@@ -110,14 +147,13 @@ func (oh *orderHeap) MatchMake(order domain.Order) MatchDTO {
 		if !ok || !couldMatch(&order, &match) {
 			break
 		}
-		oh.Pop()
+		oh.Drop()
 		if order.OwnerDoc == match.OwnerDoc {
 			retry = append(retry, match)
 			continue
 		}
 		if match.ValidUntil.Before(now) {
-			match.Status = domain.Expired
-			expired = append(expired, match)
+			expired = append(expired, match.ID)
 			continue
 		}
 		matches = append(matches, match)

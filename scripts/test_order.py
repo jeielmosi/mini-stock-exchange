@@ -1,7 +1,6 @@
 import subprocess
 import time
 import requests
-import json
 import sys
 
 API_URL = "http://localhost:8080"
@@ -70,9 +69,11 @@ def test_order_flow():
 
     # 3. Verify filled
     ask_order = requests.get(f"{API_URL}/orders/{ask_id}").json()
+    print("ASK:", ask_order)
     assert ask_order.get("status") == "FILLED", f"Ask order not filled: {ask_order}"
     
     bid_order = requests.get(f"{API_URL}/orders/{bid_id}").json()
+    print("BID:", bid_order)
     assert bid_order.get("status") == "FILLED", f"Bid order not filled: {bid_order}"
     print("Order flow matched and filled successfully")
 
@@ -115,9 +116,11 @@ def test_no_match():
     # 3. Verify pending
     ask_order = requests.get(f"{API_URL}/orders/{ask_id}").json()
     assert ask_order.get("status") == "PENDING", f"Ask order should be pending: {ask_order}"
+    print("ASK:", ask_order)
     
     bid_order = requests.get(f"{API_URL}/orders/{bid_id}").json()
     assert bid_order.get("status") == "PENDING", f"Bid order should be pending: {bid_order}"
+    print("BID:", ask_order)
     print("Non-matching orders remained pending as expected")
 
 def main():

@@ -9,42 +9,43 @@ import (
 	"testing"
 	"time"
 
+	"mini-stock-exchange/internal/config"
 	"mini-stock-exchange/internal/controller"
-	"mini-stock-exchange/internal/domain"
+	match_service "mini-stock-exchange/internal/domain-service/match-service"
 	"mini-stock-exchange/internal/dto"
+	dto_helper "mini-stock-exchange/internal/dto/helper"
+	"mini-stock-exchange/internal/entity"
 	"mini-stock-exchange/internal/repository"
-	order_service "mini-stock-exchange/internal/service/order-service"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestServer() (*httptest.Server, repository.OrderRepository, repository.TradeRepository, func()) {
+func setupTestServer() (*httptest.Server, repository.OrderRepository, func()) {
+	config.LoadTest(10)
 	ctx := context.Background()
 	db, cleanup := repository.SetupTestDB(ctx)
 
 	orderRepo := repository.NewOrderRepository(db)
-	tradeRepo := repository.NewTradeRepository(db)
-	orchestrator := order_service.NewOrchestrator(orderRepo, tradeRepo)
-	orderService := order_service.NewOrderService(orderRepo, tradeRepo, orchestrator)
-	orderController := controller.NewOrderController(orderService)
+	orchestrator := match_service.NewMockOrchestrator(orderRepo)
+	matchService := match_service.NewMatchService(orderRepo, orchestrator)
+	orderController := controller.NewOrderController(matchService)
 
 	r := chi.NewRouter()
 	orderController.RegisterRoutes(r)
 
 	server := httptest.NewServer(r)
 
-	return server, orderRepo, tradeRepo, func() {
+	return server, orderRepo, func() {
 		server.Close()
 		cleanup()
 	}
 }
 
 func TestOrderFlow(t *testing.T) {
-	server, orderRepo, tradeRepo, cleanup := setupTestServer()
+	server, orderRepo, cleanup := setupTestServer()
 	defer cleanup()
 
 	symbol := "AAPL"
@@ -55,7 +56,7 @@ func TestOrderFlow(t *testing.T) {
 	askRequest := map[string]interface{}{
 		"broker_id":   "broker1",
 		"owner_doc":   "doc1",
-		"type":        domain.Ask,
+		"type":        entity.Ask,
 		"symbol":      symbol,
 		"price":       askPrice,
 		"quantity":    10,
@@ -65,6 +66,9 @@ func TestOrderFlow(t *testing.T) {
 	body, err := json.Marshal(askRequest)
 	require.NoError(t, err)
 	resp, err := http.Post(server.URL+"/orders", "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		t.Log(err.Error())
+	}
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -73,13 +77,16 @@ func TestOrderFlow(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, respDTO.ID)
 
-	askID := respDTO.ID
+	askID, err := dto_helper.DecodeUUID(respDTO.ID)
+	require.NoError(t, err)
+	askIDStr := askID.String()
+	require.NotEmpty(t, askIDStr)
 
 	// Verify Ask order is in DB
-	askOrder, err := orderRepo.GetByID(uuid.MustParse(askID))
+	askOrder, err := orderRepo.GetByID(uuid.MustParse(askIDStr))
 	require.NoError(t, err)
 	assert.Equal(t, symbol, askOrder.Symbol)
-	assert.Equal(t, domain.Ask, askOrder.Type)
+	assert.Equal(t, entity.Ask, askOrder.Type)
 	assert.Equal(t, 10, askOrder.Quantity)
 
 	// 2. Submit a matching Bid order
@@ -102,44 +109,46 @@ func TestOrderFlow(t *testing.T) {
 	var bidResp map[string]string
 	err = json.NewDecoder(resp.Body).Decode(&bidResp)
 	require.NoError(t, err)
-	bidID, ok := bidResp["id"]
+	bidIdEncoded, ok := bidResp["id"]
 	require.True(t, ok)
+
+	bidID, err := dto_helper.DecodeUUID(bidIdEncoded)
+	require.NoError(t, err)
+	bidIdStr := bidID.String()
+	require.NotEmpty(t, bidIdStr)
 
 	// Give some time for background matching
 	time.Sleep(100 * time.Millisecond)
 
 	// 3. Verify matching results
 	// Check Bid order status
-	bidOrder, err := orderRepo.GetByID(uuid.MustParse(bidID))
+	bidOrder, err := orderRepo.GetByID(uuid.MustParse(bidIdStr))
 	require.NoError(t, err)
-	assert.Equal(t, domain.Filled, bidOrder.Status)
+	assert.Equal(t, entity.Filled, bidOrder.Status)
 	assert.Equal(t, 0, bidOrder.RemainingQuantity)
 
 	// Check Ask order status
-	askOrder, err = orderRepo.GetByID(uuid.MustParse(askID))
+	askOrder, err = orderRepo.GetByID(uuid.MustParse(askIDStr))
 	require.NoError(t, err)
-	assert.Equal(t, domain.Filled, askOrder.Status)
+	assert.Equal(t, entity.Filled, askOrder.Status)
 	assert.Equal(t, 0, askOrder.RemainingQuantity)
-
-	// Check trade exists
-	trades, err := tradeRepo.GetByOrderID(uuid.MustParse(bidID))
-	require.NoError(t, err)
-	assert.Len(t, trades, 1)
-	assert.True(t, trades[0].Price.Equal(decimal.NewFromFloat(askPrice)))
 }
 
 func TestOrderNotFound(t *testing.T) {
-	server, _, _, cleanup := setupTestServer()
+	server, _, cleanup := setupTestServer()
 	defer cleanup()
 
-	nonExistentID := uuid.New().String()
+	id, err := uuid.NewV7()
+	require.NoError(t, err)
+	nonExistentID, err := dto_helper.EncodeUUID(id)
+	require.NoError(t, err)
 	resp, err := http.Get(server.URL + "/orders/" + nonExistentID)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
 func TestOrderNoMatch(t *testing.T) {
-	server, orderRepo, _, cleanup := setupTestServer()
+	server, orderRepo, cleanup := setupTestServer()
 	defer cleanup()
 
 	symbol := "AAPL"
@@ -156,17 +165,21 @@ func TestOrderNoMatch(t *testing.T) {
 		"quantity":    10,
 		"valid_until": time.Now().Format(time.DateOnly),
 	}
+	t.Log(askRequest)
 	body, err := json.Marshal(askRequest)
 	require.NoError(t, err)
 	resp, err := http.Post(server.URL+"/orders", "application/json", bytes.NewBuffer(body))
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
-	var askResp map[string]string
+	var askResp dto.CreateOrderResponse
 	err = json.NewDecoder(resp.Body).Decode(&askResp)
 	require.NoError(t, err)
-	askID, ok := askResp["id"]
-	require.True(t, ok)
+	assert.NotEmpty(t, askResp.ID)
+	askID, err := dto_helper.DecodeUUID(askResp.ID)
+	require.NoError(t, err)
+	askIdStr := askID.String()
+	require.NotEmpty(t, askIdStr)
 
 	// 2. Submit a Bid order that doesn't match (price too low)
 	bidRequest := map[string]interface{}{
@@ -178,6 +191,7 @@ func TestOrderNoMatch(t *testing.T) {
 		"quantity":    10,
 		"valid_until": time.Now().Format(time.DateOnly),
 	}
+	t.Log(bidPrice)
 	body, err = json.Marshal(bidRequest)
 	require.NoError(t, err)
 	resp, err = http.Post(server.URL+"/orders", "application/json", bytes.NewBuffer(body))
@@ -187,29 +201,35 @@ func TestOrderNoMatch(t *testing.T) {
 	var bidResp map[string]string
 	err = json.NewDecoder(resp.Body).Decode(&bidResp)
 	require.NoError(t, err)
-	bidID, ok := bidResp["id"]
+	bidIdEncoded, ok := bidResp["id"]
 	require.True(t, ok)
+
+	bidID, err := dto_helper.DecodeUUID(bidIdEncoded)
+	require.NoError(t, err)
+	bidIdStr := bidID.String()
+	require.NotEmpty(t, bidIdStr)
 
 	// Give some time for background matching
 	time.Sleep(100 * time.Millisecond)
 
 	// 3. Verify no matching occurred
 	// Check Bid order status
-	bidOrder, err := orderRepo.GetByID(uuid.MustParse(bidID))
+	bidOrder, err := orderRepo.GetByID(uuid.MustParse(bidIdStr))
 	require.NoError(t, err)
-	assert.Equal(t, domain.Pending, bidOrder.Status)
+	assert.Equal(t, entity.Pending, bidOrder.Status)
 	assert.Equal(t, 10, bidOrder.RemainingQuantity)
 
 	// Check Ask order status
-	askOrder, err := orderRepo.GetByID(uuid.MustParse(askID))
+	askOrder, err := orderRepo.GetByID(uuid.MustParse(askIdStr))
 	require.NoError(t, err)
-	assert.Equal(t, domain.Pending, askOrder.Status)
+	assert.Equal(t, entity.Pending, askOrder.Status)
 	assert.Equal(t, 10, askOrder.RemainingQuantity)
 }
 
 func TestOrderPartialFill(t *testing.T) {
-	server, orderRepo, tradeRepo, cleanup := setupTestServer()
+	server, orderRepo, cleanup := setupTestServer()
 	defer cleanup()
+	config.LoadTest(10)
 
 	symbol := "AAPL"
 	bidPrice := float64(150)
@@ -234,8 +254,12 @@ func TestOrderPartialFill(t *testing.T) {
 	var askResp map[string]string
 	err = json.NewDecoder(resp.Body).Decode(&askResp)
 	require.NoError(t, err)
-	askID, ok := askResp["id"]
+	askIdEncoded, ok := askResp["id"]
 	require.True(t, ok)
+	askId, err := dto_helper.DecodeUUID(askIdEncoded)
+	require.NoError(t, err)
+	askIdStr := askId.String()
+	require.NotEmpty(t, askIdStr)
 
 	// 2. Submit a Bid order for 5
 	bidRequest := map[string]interface{}{
@@ -257,29 +281,26 @@ func TestOrderPartialFill(t *testing.T) {
 	var bidResp map[string]string
 	err = json.NewDecoder(resp.Body).Decode(&bidResp)
 	require.NoError(t, err)
-	bidID, ok := bidResp["id"]
+	bidIdEncoded, ok := bidResp["id"]
 	require.True(t, ok)
+	bidId, err := dto_helper.DecodeUUID(bidIdEncoded)
+	require.NoError(t, err)
+	bidIdStr := bidId.String()
+	require.NotEmpty(t, bidIdStr)
 
 	// Give some time for background matching
 	time.Sleep(100 * time.Millisecond)
 
 	// 3. Verify partial fill results
 	// Check Bid order status (should be FILLED)
-	bidOrder, err := orderRepo.GetByID(uuid.MustParse(bidID))
+	bidOrder, err := orderRepo.GetByID(uuid.MustParse(bidIdStr))
 	require.NoError(t, err)
-	assert.Equal(t, domain.Filled, bidOrder.Status)
+	assert.Equal(t, entity.Filled, bidOrder.Status)
 	assert.Equal(t, 0, bidOrder.RemainingQuantity)
 
 	// Check Ask order status (should be PARTIAL)
-	askOrder, err := orderRepo.GetByID(uuid.MustParse(askID))
+	askOrder, err := orderRepo.GetByID(uuid.MustParse(askIdStr))
 	require.NoError(t, err)
-	assert.Equal(t, domain.Partial, askOrder.Status)
+	assert.Equal(t, entity.Partial, askOrder.Status)
 	assert.Equal(t, 5, askOrder.RemainingQuantity)
-
-	// Check trade exists
-	trades, err := tradeRepo.GetByOrderID(uuid.MustParse(bidID))
-	require.NoError(t, err)
-	assert.Len(t, trades, 1)
-	assert.Equal(t, 5, trades[0].Quantity)
-	assert.True(t, trades[0].Price.Equal(decimal.NewFromFloat(askPrice)))
 }
