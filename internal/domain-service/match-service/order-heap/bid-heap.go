@@ -2,6 +2,7 @@ package order_heaps
 
 import (
 	"errors"
+	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/entity"
 	"mini-stock-exchange/internal/repository"
 )
@@ -84,15 +85,16 @@ func (b *BidHeap) fill() error {
 	if !ok {
 		return errors.New("heap is not empty, but can not peek")
 	}
-	if greaterQt(newQueryTrigger(top), b.qt) {
-		return nil
-	}
-	orders, err := b.orderRepo.GetBidsLT(top, b.heap.Cap()-b.heap.Len())
-	if err != nil {
-		return err
-	}
-	for _, o := range orders {
-		b.heap.Push(o)
+	if greaterQt(b.qt, newQueryTrigger(top)) {
+		qf := dto.NewQueryFill(b.qt.Price, b.qt.CreatedAt, b.symbol, b.heap.Cap()-b.heap.Len())
+		orders, err := b.orderRepo.GetBidsGT(qf)
+		if err != nil {
+			return err
+		}
+		for _, o := range orders {
+			b.heap.Push(o)
+		}
+		b.qt = nil
 	}
 	return nil
 }

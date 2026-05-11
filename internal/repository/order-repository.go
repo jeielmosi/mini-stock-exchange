@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/entity"
 
 	"github.com/google/uuid"
@@ -22,9 +23,9 @@ type OrderRepository interface {
 	Match(ctx context.Context, match MatchDTO) error
 	Expire(ids []uuid.UUID) error
 	GetBids(symbol string, limit int) ([]entity.Order, error)
-	GetBidsLT(order entity.Order, limit int) ([]entity.Order, error)
+	GetBidsGT(dto dto.QueryFill) ([]entity.Order, error)
 	GetAsks(symbol string, limit int) ([]entity.Order, error)
-	GetAsksGT(order entity.Order, limit int) ([]entity.Order, error)
+	GetAsksLT(dto dto.QueryFill) ([]entity.Order, error)
 }
 
 type postgresOrderRepository struct {
@@ -62,8 +63,8 @@ func (r *postgresOrderRepository) Match(ctx context.Context, match MatchDTO) err
 
 	//Update Ask
 	_, err = tx.ExecContext(ctx,
-		`UPDATE orders SET remaining_quantity = $1, status = $2 WHERE id = $3`,
-		match.Ask.RemainingQuantity, match.Ask.Status, match.Ask.ID,
+		`UPDATE orders SET remaining_quantity = $1, status = $2 WHERE id = $3 AND type = 'ASK' AND status IN ('PENDING', 'PARTIAL') AND symbol = $4`,
+		match.Ask.RemainingQuantity, match.Ask.Status, match.Ask.ID, match.Ask.Symbol,
 	)
 	if err != nil {
 		return err
@@ -71,8 +72,8 @@ func (r *postgresOrderRepository) Match(ctx context.Context, match MatchDTO) err
 
 	//Update Bid
 	_, err = tx.ExecContext(ctx,
-		`UPDATE orders SET remaining_quantity = $1, status = $2 WHERE id = $3`,
-		match.Bid.RemainingQuantity, match.Bid.Status, match.Bid.ID,
+		`UPDATE orders SET remaining_quantity = $1, status = $2 WHERE id = $3 AND type = 'BID' AND status IN ('PENDING', 'PARTIAL') AND symbol = $4`,
+		match.Bid.RemainingQuantity, match.Bid.Status, match.Bid.ID, match.Ask.Symbol,
 	)
 	if err != nil {
 		return err
@@ -109,8 +110,8 @@ func (r *postgresOrderRepository) Expire(ids []uuid.UUID) error {
 
 	for _, id := range ids {
 		_, err = tx.ExecContext(ctx,
-			`UPDATE orders SET status = $1 WHERE id = $2`,
-			id, entity.Expired,
+			`UPDATE orders SET status = 'EXPIRED' WHERE id = $1 AND status IN ('PENDING', 'PARTIAL', 'EXPIRED')`,
+			id,
 		)
 		if err != nil {
 			return err
@@ -143,16 +144,15 @@ func (r *postgresOrderRepository) GetBids(symbol string, limit int) ([]entity.Or
 	return rowsToOrders(rows)
 }
 
-// TODO remake
-func (r *postgresOrderRepository) GetBidsLT(order entity.Order, limit int) ([]entity.Order, error) {
+func (r *postgresOrderRepository) GetBidsGT(qf dto.QueryFill) ([]entity.Order, error) {
 	query := `SELECT id, broker_id, owner_doc, type, symbol, price,
 		quantity, remaining_quantity, valid_until, status, created_at
 	FROM orders 
-	WHERE symbol = $1 AND type = 'BID' AND status IN ('PENDING', 'PARTIAL')
+	WHERE symbol = $1 AND type = 'BID' AND status IN ('PENDING', 'PARTIAL') AND ( $2 < price OR (price = $2 AND created_at <= $3) )
 	ORDER BY price DESC, created_at ASC
-	LIMIT $2
+	LIMIT $4
 	`
-	args := []interface{}{order.Symbol, limit}
+	args := []interface{}{qf.Symbol, qf.Price, qf.CreatedAt, qf.Limit}
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -182,16 +182,15 @@ func (r *postgresOrderRepository) GetAsks(symbol string, limit int) ([]entity.Or
 	return rowsToOrders(rows)
 }
 
-// TODO remake
-func (r *postgresOrderRepository) GetAsksGT(order entity.Order, limit int) ([]entity.Order, error) {
+func (r *postgresOrderRepository) GetAsksLT(qf dto.QueryFill) ([]entity.Order, error) {
 	query := `SELECT id, broker_id, owner_doc, type, symbol, price,
 		quantity, remaining_quantity, valid_until, status, created_at
 	FROM orders 
-	WHERE symbol = $1 AND type = 'ASK' AND status IN ('PENDING', 'PARTIAL')
+	WHERE symbol = $1 AND type = 'ASK' AND status IN ('PENDING', 'PARTIAL') AND ( price < $2 OR (price = $2 AND created_at <= $3) )
 	ORDER BY price ASC, created_at ASC
-	LIMIT $2
+	LIMIT $4
 	`
-	args := []interface{}{order.Symbol, limit}
+	args := []interface{}{qf.Symbol, qf.Price, qf.CreatedAt, qf.Limit}
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
