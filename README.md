@@ -29,7 +29,6 @@ This application implements a stock exchange matching engine that:
 ### Order Management
 - `POST /orders` - Submit a new order (bid or ask)
 - `GET /orders/{id}` - Get order status and details
-- `GET /orders` - List orders (with optional filters)
 
 ### Trade Information
 - `GET /trades` - List executed trades
@@ -63,7 +62,7 @@ go run ./cmd/api/main.go
 ## Project Structure
 
 ```
-├── cmd/                  # Application entry points
+├── cmd/                 # Application entry points
 │   ├── api/             # Main API server
 │   └── debug/           # Debug utilities
 ├── internal/            # Private application code
@@ -108,7 +107,3 @@ Configuration is managed through environment variables:
 - `DB_PASSWORD`: Database password
 - `DB_NAME`: Database name
 - `SERVER_PORT`: HTTP server port (default: 8080)
-
-## License
-
-This project is proprietary and confidential. All rights reserved.

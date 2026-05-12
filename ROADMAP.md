@@ -1,0 +1,35 @@
+## Phase 1: Database-Only Solution
+- **Description**: The first version of the system relied entirely on the database as the sole concurrency control and persistence mechanism. Every insertion, update, and query of orders passed through the persistence layer, without any serialization control at the application level.
+- **Expected behavior**: The database, with its ACID transactions, should automatically guarantee order consistency.
+- **Identified problems**:
+    - Concurrent write operations generated **race conditions**, as there was no explicit serialization at the application level.
+    - Database write latency introduced an **inconsistency window** between reading the current state and persisting a new order.
+    - Direct coupling with the persistence layer made business logic testing and maintenance difficult.
+---
+Phase 2: Ticker-Based Centralizer
+- Description: To solve the concurrency problem, a centralizer was introduced responsible for serializing order processing per symbol. Each symbol has its own order queue, ensuring that only one operation at a time is executed by the executor for that asset.
+- How it works:
+    - Upon receiving a new order, the centralizer enqueues it in the queue corresponding to the symbol.
+    - The executor consumes orders in a strictly sequential manner per symbol, eliminating any possibility of race conditions.
+    - This approach follows a model similar to the actor model, where each symbol functions as an independent actor with serial processing.
+- Benefits:
+    - Complete elimination of race conditions at the executor level.
+    - Guarantee of temporal ordering (FIFO) of orders per symbol.
+    - Clear separation of responsibilities between the reception layer and the execution layer.
+- Limitations:
+    - The centralizer introduced a single point of failure logically — if the centralizer process crashed, orders for that symbol would be blocked until recovery.
+    - There was still full dependency on the database for persistence and state recovery.
+---
+Phase 3: In-Memory Priority Queues for High Performance
+- Description: To achieve high performance in match execution, the executor maintains two in-memory priority queues:
+    - Buy queue (bids): a max-heap sorted by highest price (higher offers have priority).
+    - Sell queue (asks): a min-heap sorted by lowest price (lower offers have priority).
+  - Matching occurs in-memory, comparing the tops of both queues and executing trades when there is a price intersection, without needing to query the database for each operation.
+- Benefits:
+    - Drastically reduced latency: matching happens in real-time in-memory, eliminating round-trips to the database for each comparison.
+    - High throughput: the system can process thousands of orders per second without overloading the persistence layer.
+    - Enhanced resilience: decentralization of layers (reception, execution, persistence) allows failures in one layer not to block the others.
+- Trade-offs assumed:
+    - Stateful architecture: Since the priority queues maintain state in-memory, the application cannot be horizontally scaled trivially — multiple instances would need a shared state mechanism (e.g., Redis, event sourcing) to maintain consistency between them.
+    - Resynchronization after restart: In case of crash or process restart, the in-memory queues are lost. The system needs to perform a complete state reconstruction from the database or an event log (WAL — Write-Ahead Log), which may introduce a partial unavailability period.
+    - Memory management: Although queue allocation is controlled and memory leaks are mitigated by good practices (size limits, garbage collection), the risk of excessive memory consumption in extreme volume scenarios is not completely eliminated.
