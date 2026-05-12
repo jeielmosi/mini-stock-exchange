@@ -12,9 +12,9 @@ import (
 
 func NewMockController(r chi.Router, orderRepo repository.OrderRepository, tradeRepo repository.TradeRepository) Controller {
 	orchestrator := match_service.NewMockOrchestrator(orderRepo)
-	orderService := order_service.NewOrderService(orderRepo)
+	orderService := order_service.NewOrderService(orderRepo, tradeRepo)
 	tradeService := trade_service.NewTradeService(tradeRepo)
-	matchService := match_service.NewMatchService(orchestrator)
+	matchService := match_service.NewMatchService(orchestrator, orderService)
 
 	orderController := NewOrderController(matchService, orderService)
 	tradeController := NewTradeController(tradeService)

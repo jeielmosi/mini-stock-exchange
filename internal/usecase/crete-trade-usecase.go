@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/entity"
+
+	"github.com/google/uuid"
 	//"mini-stock-exchange/internal/repository"
 )
 
@@ -36,13 +38,11 @@ func (c *createTradeUsecase) CreateTrade(dto dto.OrderMatch) (entity.Trade, erro
 		return entity.Trade{}, fmt.Errorf("same owner")
 	}
 
-	trade := entity.Trade{
-		BuyOrderID:  dto.Bid.ID,
-		SellOrderID: dto.Ask.ID,
-		Symbol:      dto.Ask.Symbol,
-		Price:       dto.Price,
-		Quantity:    dto.Quantity,
-		ExecutedAt:  dto.ExecutedAt,
+	id, err := uuid.NewV7()
+	if err != nil {
+		return entity.Trade{}, err
 	}
+
+	trade := entity.NewTrade(id, dto.Bid.ID, dto.Ask.ID, dto.Ask.Symbol, dto.Price, dto.Quantity, dto.ExecutedAt)
 	return trade, nil
 }

@@ -61,10 +61,6 @@ func NewExecutor(
 }
 
 func (e *executor) ProcessOrder(ctx context.Context, order entity.Order) error {
-	if err := e.orderRepo.Insert(order); err != nil {
-		return fmt.Errorf("failed to save order to database: %w", err)
-	}
-
 	select {
 	case e.orderChan <- order:
 		return nil

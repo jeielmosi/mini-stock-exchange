@@ -1,8 +1,6 @@
 package dto
 
 import (
-	"time"
-
 	dto_helper "mini-stock-exchange/internal/dto/helper"
 	"mini-stock-exchange/internal/entity"
 
@@ -29,22 +27,31 @@ func NewGetOrderRequest(id64 string) (GetOrderRequest, error) {
 }
 
 type GetOrderResponse struct {
-	ID              string  `json:"id" validate:"required"`
-	Type            string  `json:"type" validate:"required"`
-	Symbol          string  `json:"symbol" validate:"required"`
-	Price           float64 `json:"price" validate:"required"`
-	Quantity        int     `json:"quantity" validate:"required"`
-	PendingQuantity int     `json:"pending_quantity,omitempty"`
-	FilledQuantity  int     `json:"filled_quantity,omitempty"`
-	Status          string  `json:"status" validate:"required"`
-	CreatedAt       string  `json:"created_at" validate:"required"`
-	ValidUntil      string  `json:"valid_until" validate:"required"`
+	ID              string   `json:"id" validate:"required"`
+	Type            string   `json:"type" validate:"required"`
+	Symbol          string   `json:"symbol" validate:"required"`
+	Price           float64  `json:"price" validate:"required"`
+	Quantity        int      `json:"quantity" validate:"required"`
+	PendingQuantity int      `json:"pending_quantity,omitempty"`
+	FilledQuantity  int      `json:"filled_quantity,omitempty"`
+	Status          string   `json:"status" validate:"required"`
+	CreatedAt       string   `json:"created_at" validate:"required"`
+	ValidUntil      string   `json:"valid_until" validate:"required"`
+	Trades          []string `json:"trades,omitempty"`
 }
 
-func NewGetOrderResponse(order entity.Order) (GetOrderResponse, error) {
+func NewGetOrderResponse(order entity.Order, tradeIds []uuid.UUID) (GetOrderResponse, error) {
 	id, err := dto_helper.EncodeUUID(order.ID)
 	if err != nil {
 		return GetOrderResponse{}, err
+	}
+
+	trades := make([]string, len(tradeIds))
+	for t, trade := range tradeIds {
+		trades[t], err = dto_helper.EncodeUUID(trade)
+		if err != nil {
+			return GetOrderResponse{}, err
+		}
 	}
 
 	return GetOrderResponse{
@@ -56,7 +63,6 @@ func NewGetOrderResponse(order entity.Order) (GetOrderResponse, error) {
 		PendingQuantity: order.RemainingQuantity,
 		FilledQuantity:  order.Quantity - order.RemainingQuantity,
 		Status:          string(order.Status),
-		CreatedAt:       order.CreatedAt.Format(time.DateOnly),
-		ValidUntil:      order.ValidUntil.Format(time.DateOnly),
+		Trades:          trades,
 	}, nil
 }

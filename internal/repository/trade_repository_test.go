@@ -30,7 +30,7 @@ func TestTradeRepository_GetByID_Found(t *testing.T) {
 	ctx := context.Background()
 	db, cleanup, err := SetupTestDB(ctx)
 	require.NoError(t, err)
-	cleanup()
+	defer cleanup()
 
 	repo := &tradeRepository{db: db}
 	orderRepo, err := NewOrderRepository(db)
@@ -40,7 +40,7 @@ func TestTradeRepository_GetByID_Found(t *testing.T) {
 	buyOrderID := uuid.New()
 	sellOrderID := uuid.New()
 	symbol := "AAPL"
-	now := time.Now().UTC().Truncate(time.Microsecond)
+	now := time.Now()
 
 	buyOrder := &entity.Order{
 		ID:                buyOrderID,
@@ -93,7 +93,8 @@ func TestTradeRepository_GetByID_Found(t *testing.T) {
 	assert.Equal(t, symbol, retrievedTrade.Symbol)
 	assert.True(t, tradePrice.Equal(retrievedTrade.Price))
 	assert.Equal(t, tradeQuantity, retrievedTrade.Quantity)
-	assert.True(t, executedAt.Equal(retrievedTrade.ExecutedAt))
+	// Use tolerance for time comparison since PostgreSQL truncates to microseconds
+	assert.True(t, executedAt.Sub(retrievedTrade.ExecutedAt).Abs() < time.Microsecond)
 	assert.Equal(t, buyOrderID, retrievedTrade.BuyOrderID)
 	assert.Equal(t, sellOrderID, retrievedTrade.SellOrderID)
 }

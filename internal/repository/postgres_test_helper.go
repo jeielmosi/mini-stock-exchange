@@ -14,29 +14,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-/*
-type CleanUpOnce interface {
-	Do() error
-}
-
-type cleanUpOnce struct {
-	fn   func() error
-	once sync.Once
-	err  error
-}
-
-func NewCleanUpOnce(fn func() error) CleanUpOnce {
-	return &cleanUpOnce{fn: fn}
-}
-
-func (c *cleanUpOnce) Do() error {
-	c.once.Do(func() {
-		c.err = c.fn()
-	})
-	return c.err
-}
-*/
-//func SetupTestDB(ctx context.Context) (*sql.DB, CleanUpOnce, error) {
 func SetupTestDB(ctx context.Context) (*sql.DB, func(), error) {
 	pgContainer, err := postgres.Run(ctx, "postgres:16-alpine",
 		postgres.WithDatabase("testdb"),
@@ -94,6 +71,5 @@ func SetupTestDB(ctx context.Context) (*sql.DB, func(), error) {
 		pgContainer.Terminate(ctx)
 	}
 
-	//return db, NewCleanUpOnce(fn), nil
 	return db, fn, nil
 }

@@ -8,6 +8,7 @@ import (
 	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/entity"
 	"mini-stock-exchange/internal/repository"
+	order_service "mini-stock-exchange/internal/service/order-service"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -29,8 +30,15 @@ func TestMatchService_SubmitOrder_Match(t *testing.T) {
 	orderRepo, err := repository.NewOrderRepository(db)
 	assert.NoError(t, err)
 	defer orderRepo.Stop()
+
+	tradeRepo, err := repository.NewTradeRepository(db)
+	assert.NoError(t, err)
+	defer tradeRepo.Stop()
+
 	orch := NewMockOrchestrator(orderRepo)
-	svc := NewMatchService(orch)
+	orderSvc := order_service.NewOrderService(orderRepo, tradeRepo)
+
+	svc := NewMatchService(orch, orderSvc)
 
 	symbol := "AAPL"
 	bidPrice := float64(150)
@@ -57,8 +65,14 @@ func TestMatchService_SubmitOrder_PartialMatch(t *testing.T) {
 	orderRepo, err := repository.NewOrderRepository(db)
 	assert.NoError(t, err)
 	defer orderRepo.Stop()
+
+	tradeRepo, err := repository.NewTradeRepository(db)
+	assert.NoError(t, err)
+	defer tradeRepo.Stop()
+
+	orderSvc := order_service.NewOrderService(orderRepo, tradeRepo)
 	orch := NewMockOrchestrator(orderRepo)
-	svc := NewMatchService(orch)
+	svc := NewMatchService(orch, orderSvc)
 
 	symbol := "AAPL"
 	bidPrice := float64(150)
@@ -85,8 +99,14 @@ func TestMatchService_SubmitOrder_NoMatch(t *testing.T) {
 	orderRepo, err := repository.NewOrderRepository(db)
 	assert.NoError(t, err)
 	defer orderRepo.Stop()
+	tradeRepo, err := repository.NewTradeRepository(db)
+	assert.NoError(t, err)
+	defer tradeRepo.Stop()
+
 	orch := NewMockOrchestrator(orderRepo)
-	svc := NewMatchService(orch)
+	orderSvc := order_service.NewOrderService(orderRepo, tradeRepo)
+
+	svc := NewMatchService(orch, orderSvc)
 
 	symbol := "AAPL"
 	bidPrice := float64(100)
@@ -113,8 +133,14 @@ func TestMatchService_SubmitOrder_MultipleMatches(t *testing.T) {
 	orderRepo, err := repository.NewOrderRepository(db)
 	assert.NoError(t, err)
 	defer orderRepo.Stop()
+	tradeRepo, err := repository.NewTradeRepository(db)
+	assert.NoError(t, err)
+	defer tradeRepo.Stop()
+
 	orch := NewMockOrchestrator(orderRepo)
-	svc := NewMatchService(orch)
+	orderSvc := order_service.NewOrderService(orderRepo, tradeRepo)
+
+	svc := NewMatchService(orch, orderSvc)
 
 	symbol := "AAPL"
 	bidPrice := float64(150)
@@ -141,8 +167,15 @@ func TestMatchService_SubmitOrder_AskMatch(t *testing.T) {
 	orderRepo, err := repository.NewOrderRepository(db)
 	assert.NoError(t, err)
 	defer orderRepo.Stop()
+
+	tradeRepo, err := repository.NewTradeRepository(db)
+	assert.NoError(t, err)
+	defer tradeRepo.Stop()
+
 	orch := NewMockOrchestrator(orderRepo)
-	svc := NewMatchService(orch)
+	orderSvc := order_service.NewOrderService(orderRepo, tradeRepo)
+
+	svc := NewMatchService(orch, orderSvc)
 
 	symbol := "AAPL"
 	askPrice := float64(130)

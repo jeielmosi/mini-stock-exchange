@@ -14,6 +14,7 @@ import (
 type TradeRepository interface {
 	Stop() error
 	GetByID(id uuid.UUID) (entity.Trade, error)
+	GetByOrderID(orderId uuid.UUID) ([]uuid.UUID, error)
 }
 
 type tradeRepository struct {
@@ -44,4 +45,28 @@ func (r *tradeRepository) GetByID(id uuid.UUID) (entity.Trade, error) {
 		return trade, err
 	}
 	return trade, nil
+}
+
+func (r *tradeRepository) GetByOrderID(orderId uuid.UUID) ([]uuid.UUID, error) {
+	query := `SELECT id
+	FROM trades 
+	WHERE buy_order_id = $1 OR sell_order_id = $1`
+	args := []interface{}{orderId}
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	tradeIds := []uuid.UUID{}
+	for rows.Next() {
+		tradeId := uuid.UUID{}
+		err := rows.Scan(&tradeId)
+		if err != nil {
+			return nil, err
+		}
+		tradeIds = append(tradeIds, tradeId)
+	}
+	return tradeIds, nil
 }

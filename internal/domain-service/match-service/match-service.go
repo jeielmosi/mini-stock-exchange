@@ -6,6 +6,7 @@ import (
 
 	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/observability"
+	order_service "mini-stock-exchange/internal/service/order-service"
 
 	"go.opentelemetry.io/otel"
 )
@@ -18,11 +19,13 @@ type MatchService interface {
 
 type matchService struct {
 	orchestrator Orchestrator
+	orderService order_service.OrderService
 }
 
-func NewMatchService(orchestrator Orchestrator) MatchService {
+func NewMatchService(orchestrator Orchestrator, orderService order_service.OrderService) MatchService {
 	return &matchService{
 		orchestrator: orchestrator,
+		orderService: orderService,
 	}
 }
 
@@ -32,6 +35,11 @@ func (s *matchService) SubmitOrder(ctx context.Context, req dto.CreateOrderReque
 	defer span.End()
 
 	order, err := req.ToOrder()
+	if err != nil {
+		return dto.CreateOrderResponse{}, err
+	}
+
+	err = s.orderService.PostOrder(order)
 	if err != nil {
 		return dto.CreateOrderResponse{}, err
 	}
