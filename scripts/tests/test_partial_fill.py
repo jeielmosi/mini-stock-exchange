@@ -8,9 +8,15 @@ def run():
     ask_price = 140.0
     bid_price = 150.0
 
+    # Create Brokers
+    b1_resp = requests.post(f"{API_URL}/brokers", json={"name": "Broker 1"})
+    b1_id = b1_resp.json().get("id")
+    b2_resp = requests.post(f"{API_URL}/brokers", json={"name": "Broker 2"})
+    b2_id = b2_resp.json().get("id")
+
     # 1. Create Ask Order (Small quantity)
     ask_payload = {
-        "broker_id": "broker1",
+        "broker_id": b1_id,
         "owner_doc": "doc1",
         "type": "ASK",
         "symbol": symbol,
@@ -24,7 +30,7 @@ def run():
 
     # 2. Create Matching Bid Order (Larger quantity)
     bid_payload = {
-        "broker_id": "broker2",
+        "broker_id": b2_id,
         "owner_doc": "doc2",
         "type": "BID",
         "symbol": symbol,

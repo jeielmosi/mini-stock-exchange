@@ -48,13 +48,33 @@ func main() {
 		panic(err)
 	}
 	defer repo.Stop()
+	brokerRepo, err := repository.NewBrokerRepository(db)
+	if err != nil {
+		panic(err)
+	}
+
+	b0 := uuid.New()
+	b1 := uuid.New()
+	b2 := uuid.New()
+	err = brokerRepo.Insert(entity.Broker{ID: b0, Name: "broker0"})
+	if err != nil {
+		panic(err)
+	}
+	err = brokerRepo.Insert(entity.Broker{ID: b1, Name: "broker1"})
+	if err != nil {
+		panic(err)
+	}
+	err = brokerRepo.Insert(entity.Broker{ID: b2, Name: "broker2"})
+	if err != nil {
+		panic(err)
+	}
 
 	ah := order_heaps.NewAskHeap(symbol, 2, repo)
 
 	// Order in repo that should be picked up by fill
 	o0 := entity.Order{
 		ID:                uuid.New(),
-		BrokerID:          "broker0",
+		BrokerID:          b0,
 		OwnerDoc:          "doc0",
 		Symbol:            symbol,
 		Price:             decimal.NewFromInt(5),
@@ -73,7 +93,7 @@ func main() {
 
 	o1 := entity.Order{
 		ID:                uuid.New(),
-		BrokerID:          "broker1",
+		BrokerID:          b1,
 		OwnerDoc:          "doc1",
 		Symbol:            symbol,
 		Price:             decimal.NewFromInt(10),
@@ -92,7 +112,7 @@ func main() {
 
 	o2 := entity.Order{
 		ID:                uuid.New(),
-		BrokerID:          "broker2",
+		BrokerID:          b2,
 		OwnerDoc:          "doc2",
 		Symbol:            symbol,
 		Price:             decimal.NewFromInt(20),
@@ -118,7 +138,7 @@ func main() {
 		RemainingQuantity: 100,
 		Type:              entity.Bid,
 		OwnerDoc:          "match",
-		BrokerID:          "match",
+		BrokerID:          uuid.New(),
 	}
 
 	res, err := ah.Pop(match)

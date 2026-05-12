@@ -22,10 +22,21 @@ func TestOrderRepository(t *testing.T) {
 	repo, err := NewOrderRepository(db)
 	assert.NoError(t, err)
 
+	brokerRepo, err := NewBrokerRepository(db)
+	assert.NoError(t, err)
+
+	broker1ID := uuid.New()
+	broker2ID := uuid.New()
+
+	err = brokerRepo.Insert(entity.Broker{ID: broker1ID, Name: "broker1"})
+	require.NoError(t, err)
+	err = brokerRepo.Insert(entity.Broker{ID: broker2ID, Name: "broker2"})
+	require.NoError(t, err)
+
 	t.Run("Create and GetByID", func(t *testing.T) {
 		order := &entity.Order{
 			ID:                uuid.New(),
-			BrokerID:          "broker1",
+			BrokerID:          broker1ID,
 			OwnerDoc:          "doc1",
 			Type:              entity.Bid,
 			Symbol:            "AAPL",
@@ -49,10 +60,16 @@ func TestOrderRepository(t *testing.T) {
 
 	t.Run("GetBids and GetAsks", func(t *testing.T) {
 		symbol := "SYM_" + uuid.New().String()[:10]
+		b1 := uuid.New()
+		b2 := uuid.New()
+		err = brokerRepo.Insert(entity.Broker{ID: b1, Name: "b1"})
+		require.NoError(t, err)
+		err = brokerRepo.Insert(entity.Broker{ID: b2, Name: "b2"})
+		require.NoError(t, err)
 		orders := []entity.Order{
 			{
 				ID:                uuid.New(),
-				BrokerID:          "b1",
+				BrokerID:          b1,
 				OwnerDoc:          "d1",
 				Type:              entity.Bid,
 				Symbol:            symbol,
@@ -65,7 +82,7 @@ func TestOrderRepository(t *testing.T) {
 			},
 			{
 				ID:                uuid.New(),
-				BrokerID:          "b2",
+				BrokerID:          b2,
 				OwnerDoc:          "d2",
 				Type:              entity.Ask,
 				Symbol:            symbol,
@@ -102,7 +119,7 @@ func TestOrderRepository(t *testing.T) {
 
 		ask := entity.Order{
 			ID:                askID,
-			BrokerID:          "broker1",
+			BrokerID:          broker1ID,
 			OwnerDoc:          "doc1",
 			Type:              entity.Ask,
 			Symbol:            symbol,
@@ -116,7 +133,7 @@ func TestOrderRepository(t *testing.T) {
 
 		bid := entity.Order{
 			ID:                bidID,
-			BrokerID:          "broker2",
+			BrokerID:          broker2ID,
 			OwnerDoc:          "doc2",
 			Type:              entity.Bid,
 			Symbol:            symbol,

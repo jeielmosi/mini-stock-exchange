@@ -8,9 +8,15 @@ def run():
     symbol1 = newUUID()
     symbol2 = newUUID()
 
+    # Create Brokers
+    b1_resp = requests.post(f"{API_URL}/brokers", json={"name": "Broker 1"})
+    b1_id = b1_resp.json().get("id")
+    b2_resp = requests.post(f"{API_URL}/brokers", json={"name": "Broker 2"})
+    b2_id = b2_resp.json().get("id")
+
     # 1. Create Ask for symbol1
     ask_payload = {
-        "broker_id": "b1",
+        "broker_id": b1_id,
         "owner_doc": "d1",
         "type": "ASK",
         "symbol": symbol1,
@@ -23,7 +29,7 @@ def run():
 
     # 2. Create Bid for symbol2 (Matching price)
     bid_payload = {
-        "broker_id": "b2",
+        "broker_id": b2_id,
         "owner_doc": "d2",
         "type": "BID",
         "symbol": symbol2,

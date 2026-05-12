@@ -8,11 +8,17 @@ def run():
     ask_price = 200.0
     bid_price = 210.0
 
+    # Create Brokers
+    broker_ids = []
+    for i in range(3):
+        resp = requests.post(f"{API_URL}/brokers", json={"name": f"Broker {i}"})
+        broker_ids.append(resp.json().get("id"))
+
     # 1. Create two smaller Ask Orders
     asks = []
     for i in range(2):
         payload = {
-            "broker_id": f"broker_ask{i}",
+            "broker_id": broker_ids[i],
             "owner_doc": f"doc_ask{i}",
             "type": "ASK",
             "symbol": symbol,
@@ -26,7 +32,7 @@ def run():
 
     # 2. Create one larger Bid Order that covers both
     bid_payload = {
-        "broker_id": "broker_bid",
+        "broker_id": broker_ids[2],
         "owner_doc": "doc_bid",
         "type": "BID",
         "symbol": symbol,

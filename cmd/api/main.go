@@ -48,6 +48,12 @@ func main() {
 	}
 	defer tradeRepo.Stop()
 
+	brokerRepo, err := repository.NewBrokerRepository(db)
+	if err != nil {
+		log.Fatalf("failed to create broker repository: %v", err)
+	}
+	defer brokerRepo.Stop()
+
 	r := chi.NewRouter()
 
 	// Useful built-in middlewares
@@ -55,7 +61,7 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 
-	ctrl := controller.NewController(r, orderRepo, tradeRepo)
+	ctrl := controller.NewController(r, orderRepo, tradeRepo, brokerRepo)
 	ctrl.RegisterRoutes(r)
 
 	log.Println("Server starting on :8080...")

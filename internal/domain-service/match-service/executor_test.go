@@ -40,6 +40,11 @@ func TestSymbolExecutor_ProcessOrder(t *testing.T) {
 	orderRepo, err := repository.NewOrderRepository(db)
 	require.NoError(t, err)
 	defer orderRepo.Stop()
+	brokerRepo, err := repository.NewBrokerRepository(db)
+	require.NoError(t, err)
+	brokerID := uuid.New()
+	err = brokerRepo.Insert(entity.Broker{ID: brokerID, Name: "broker1"})
+	require.NoError(t, err)
 
 	configEnv(10)
 	executor := newExecutor("AAPL", orderRepo)
@@ -53,8 +58,12 @@ func TestSymbolExecutor_ProcessOrder(t *testing.T) {
 		RemainingQuantity: 10,
 		Type:              entity.Bid,
 		Status:            entity.Pending,
+		BrokerID:          brokerID,
 	}
 
+	// Insert must happen before ProcessOrder for FK constraints
+	err = orderRepo.Insert(order)
+	require.NoError(t, err)
 	err = executor.ProcessOrder(context.Background(), order)
 	if err != nil {
 		t.Log(err.Error())
@@ -70,12 +79,20 @@ func TestSymbolExecutor_MatchMaking(t *testing.T) {
 	orderRepo, err := repository.NewOrderRepository(db)
 	assert.NoError(t, err)
 	defer orderRepo.Stop()
+	brokerRepo, err := repository.NewBrokerRepository(db)
+	require.NoError(t, err)
+	b1 := uuid.New()
+	b2 := uuid.New()
+	err = brokerRepo.Insert(entity.Broker{ID: b1, Name: "broker1"})
+	require.NoError(t, err)
+	err = brokerRepo.Insert(entity.Broker{ID: b2, Name: "broker2"})
+	require.NoError(t, err)
 
 	configEnv(10)
 	executor := newExecutor("AAPL", orderRepo)
 	defer executor.Stop()
 
-	// 1. Add an Ask order to the heap
+	// 1. Add an Ask order - must be in DB first for FK constraints
 	ask := &entity.Order{
 		ID:                mustUUID(),
 		Symbol:            "AAPL",
@@ -86,7 +103,10 @@ func TestSymbolExecutor_MatchMaking(t *testing.T) {
 		Status:            entity.Pending,
 		OwnerDoc:          "broker1",
 		ValidUntil:        time.Now().Add(time.Hour),
+		BrokerID:          b1,
 	}
+	err = orderRepo.Insert(*ask)
+	require.NoError(t, err)
 	executor.ProcessOrder(context.Background(), *ask)
 
 	// Small sleep to ensure the order is processed by the goroutine
@@ -102,8 +122,11 @@ func TestSymbolExecutor_MatchMaking(t *testing.T) {
 		Status:            entity.Pending,
 		Type:              entity.Bid,
 		OwnerDoc:          "broker2",
+		BrokerID:          b2,
 	}
 
+	err = orderRepo.Insert(*bid)
+	require.NoError(t, err)
 	err = executor.ProcessOrder(context.Background(), *bid)
 	if err != nil {
 		t.Log(err.Error())

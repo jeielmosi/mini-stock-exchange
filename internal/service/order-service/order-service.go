@@ -4,6 +4,8 @@ import (
 	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/entity"
 	"mini-stock-exchange/internal/repository"
+	broker_service "mini-stock-exchange/internal/service/broker-service"
+	trade_service "mini-stock-exchange/internal/service/trade-service"
 )
 
 type OrderService interface {
@@ -12,14 +14,16 @@ type OrderService interface {
 }
 
 type orderService struct {
-	orderRepo repository.OrderRepository
-	tradeRepo repository.TradeRepository
+	orderRepo   repository.OrderRepository
+	brokerSvc   broker_service.BrokerService
+	tradeSvc    trade_service.TradeService
 }
 
-func NewOrderService(orderRepo repository.OrderRepository, tradeRepo repository.TradeRepository) OrderService {
+func NewOrderService(orderRepo repository.OrderRepository, brokerSvc broker_service.BrokerService, tradeSvc trade_service.TradeService) OrderService {
 	return &orderService{
 		orderRepo: orderRepo,
-		tradeRepo: tradeRepo,
+		brokerSvc: brokerSvc,
+		tradeSvc:  tradeSvc,
 	}
 }
 
@@ -29,7 +33,14 @@ func (o *orderService) GetOrder(req dto.GetOrderRequest) (dto.GetOrderResponse, 
 	if err != nil {
 		return dto.GetOrderResponse{}, err
 	}
-	trades, err := o.tradeRepo.GetByOrderID(req.ID)
+
+	broker, err := o.brokerSvc.GetBrokerByID(order.BrokerID)
+	if err != nil {
+		return dto.GetOrderResponse{}, err
+	}
+	order.BrokerName = broker.Name
+
+	trades, err := o.tradeSvc.GetTradesByOrder(req.ID)
 	if err != nil {
 		return dto.GetOrderResponse{}, err
 	}

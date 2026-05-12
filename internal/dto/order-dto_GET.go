@@ -38,6 +38,7 @@ type GetOrderResponse struct {
 	CreatedAt       string   `json:"created_at,omitempty"`
 	ValidUntil      string   `json:"valid_until,omitempty"`
 	Trades          []string `json:"trades,omitempty"`
+	BrokerName      string   `json:"broker,omitempty"`
 }
 
 func NewGetOrderResponse(order entity.Order, tradeIds []uuid.UUID) (GetOrderResponse, error) {
@@ -63,6 +64,7 @@ func NewGetOrderResponse(order entity.Order, tradeIds []uuid.UUID) (GetOrderResp
 		PendingQuantity: order.RemainingQuantity,
 		FilledQuantity:  order.Quantity - order.RemainingQuantity,
 		Status:          string(order.Status),
+		BrokerName:      order.BrokerName,
 		Trades:          trades,
 	}, nil
 }

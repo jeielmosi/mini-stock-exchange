@@ -29,8 +29,13 @@ func (r *CreateOrderRequest) ToOrder() (entity.Order, error) {
 		return entity.Order{}, fmt.Errorf("invalid valid_until format, use Date Only format")
 	}
 
+	brokerID, err := dto_helper.DecodeUUIDv7(r.BrokerID)
+	if err != nil {
+		return entity.Order{}, fmt.Errorf("invalid broker_id format, expected UUID")
+	}
+
 	return entity.NewOrder(
-		r.BrokerID, r.OwnerDoc, r.Symbol,
+		brokerID, r.OwnerDoc, r.Symbol,
 		r.Type, decimal.NewFromFloat(r.Price),
 		r.Quantity, validUntil,
 	)

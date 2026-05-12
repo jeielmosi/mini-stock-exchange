@@ -1,9 +1,14 @@
 CREATE TYPE order_type AS ENUM ('BID', 'ASK');
 CREATE TYPE order_status AS ENUM ('PENDING', 'PARTIAL', 'FILLED', 'EXPIRED');
 
+CREATE TABLE brokers (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
+);
+
 CREATE TABLE orders (
     id UUID PRIMARY KEY,
-    broker_id VARCHAR(255) NOT NULL,
+    broker_id UUID NOT NULL REFERENCES brokers(id),
     owner_doc VARCHAR(255) NOT NULL,
     type order_type NOT NULL,
     symbol VARCHAR(20) NOT NULL,
@@ -22,7 +27,8 @@ CREATE TABLE trades (
     symbol VARCHAR(20) NOT NULL,
     price NUMERIC(20, 8) NOT NULL,
     quantity INTEGER NOT NULL,
-    executed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+    executed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_trade_pair UNIQUE (buy_order_id, sell_order_id)
 );
 
 CREATE INDEX idx_orders_ask

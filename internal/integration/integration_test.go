@@ -22,7 +22,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestServer() (*httptest.Server, repository.OrderRepository, func()) {
+func mustNewV7() uuid.UUID {
+	id, err := uuid.NewV7()
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
+func setupTestServer() (*httptest.Server, repository.OrderRepository, repository.BrokerRepository, func()) {
 	config.LoadTest(10)
 	ctx := context.Background()
 	db, cleanup, err := repository.SetupTestDB(ctx)
@@ -38,30 +46,44 @@ func setupTestServer() (*httptest.Server, repository.OrderRepository, func()) {
 	if err != nil {
 		panic(err)
 	}
+	brokerRepo, err := repository.NewBrokerRepository(db)
+	if err != nil {
+		panic(err)
+	}
 
 	r := chi.NewRouter()
-	ctrl := controller.NewMockController(r, orderRepo, tradeRepo)
+	ctrl := controller.NewMockController(r, orderRepo, tradeRepo, brokerRepo)
 	ctrl.RegisterRoutes(r)
 
 	server := httptest.NewServer(r)
 
-	return server, orderRepo, func() {
+	return server, orderRepo, brokerRepo, func() {
 		server.Close()
 		cleanup()
 	}
 }
 
 func TestOrderFlow(t *testing.T) {
-	server, orderRepo, cleanup := setupTestServer()
+	server, orderRepo, brokerRepo, cleanup := setupTestServer()
 	defer cleanup()
+
+	b1 := mustNewV7()
+	b2 := mustNewV7()
+	err := brokerRepo.Insert(entity.Broker{ID: b1, Name: "broker1"})
+	require.NoError(t, err)
+	err = brokerRepo.Insert(entity.Broker{ID: b2, Name: "broker2"})
+	require.NoError(t, err)
 
 	symbol := "AAPL"
 	bidPrice := float64(150)
 	askPrice := float64(140)
 
+	b1Encoded, err := dto_helper.EncodeUUID(b1)
+	require.NoError(t, err)
+
 	// 1. Submit an Ask order
 	askRequest := map[string]interface{}{
-		"broker_id":   "broker1",
+		"broker_id":   b1Encoded,
 		"owner_doc":   "doc1",
 		"type":        entity.Ask,
 		"symbol":      symbol,
@@ -97,8 +119,11 @@ func TestOrderFlow(t *testing.T) {
 	assert.Equal(t, 10, askOrder.Quantity)
 
 	// 2. Submit a matching Bid order
+	b2Encoded, err := dto_helper.EncodeUUID(b2)
+	require.NoError(t, err)
+
 	bidRequest := map[string]interface{}{
-		"broker_id":   "broker2",
+		"broker_id":   b2Encoded,
 		"owner_doc":   "doc2",
 		"type":        "BID",
 		"symbol":      symbol,
@@ -142,7 +167,7 @@ func TestOrderFlow(t *testing.T) {
 }
 
 func TestOrderNotFound(t *testing.T) {
-	server, _, cleanup := setupTestServer()
+	server, _, _, cleanup := setupTestServer()
 	defer cleanup()
 
 	id, err := uuid.NewV7()
@@ -155,16 +180,26 @@ func TestOrderNotFound(t *testing.T) {
 }
 
 func TestOrderNoMatch(t *testing.T) {
-	server, orderRepo, cleanup := setupTestServer()
+	server, orderRepo, brokerRepo, cleanup := setupTestServer()
 	defer cleanup()
+
+	b1 := mustNewV7()
+	b2 := mustNewV7()
+	err := brokerRepo.Insert(entity.Broker{ID: b1, Name: "broker1"})
+	require.NoError(t, err)
+	err = brokerRepo.Insert(entity.Broker{ID: b2, Name: "broker2"})
+	require.NoError(t, err)
 
 	symbol := "AAPL"
 	bidPrice := float64(100)
 	askPrice := float64(110)
 
+	b1Encoded, err := dto_helper.EncodeUUID(b1)
+	require.NoError(t, err)
+
 	// 1. Submit an Ask order
 	askRequest := map[string]interface{}{
-		"broker_id":   "broker1",
+		"broker_id":   b1Encoded,
 		"owner_doc":   "doc1",
 		"type":        "ASK",
 		"symbol":      symbol,
@@ -189,8 +224,11 @@ func TestOrderNoMatch(t *testing.T) {
 	require.NotEmpty(t, askIdStr)
 
 	// 2. Submit a Bid order that doesn't match (price too low)
+	b2Encoded, err := dto_helper.EncodeUUID(b2)
+	require.NoError(t, err)
+
 	bidRequest := map[string]interface{}{
-		"broker_id":   "broker2",
+		"broker_id":   b2Encoded,
 		"owner_doc":   "doc2",
 		"type":        "BID",
 		"symbol":      symbol,
@@ -234,17 +272,27 @@ func TestOrderNoMatch(t *testing.T) {
 }
 
 func TestOrderPartialFill(t *testing.T) {
-	server, orderRepo, cleanup := setupTestServer()
+	server, orderRepo, brokerRepo, cleanup := setupTestServer()
 	defer cleanup()
 	config.LoadTest(10)
+
+	b1 := mustNewV7()
+	b2 := mustNewV7()
+	err := brokerRepo.Insert(entity.Broker{ID: b1, Name: "broker1"})
+	require.NoError(t, err)
+	err = brokerRepo.Insert(entity.Broker{ID: b2, Name: "broker2"})
+	require.NoError(t, err)
 
 	symbol := "AAPL"
 	bidPrice := float64(150)
 	askPrice := float64(140)
 
+	b1Encoded, err := dto_helper.EncodeUUID(b1)
+	require.NoError(t, err)
+
 	// 1. Submit an Ask order
 	askRequest := map[string]interface{}{
-		"broker_id":   "broker1",
+		"broker_id":   b1Encoded,
 		"owner_doc":   "doc1",
 		"type":        "ASK",
 		"symbol":      symbol,
@@ -269,8 +317,11 @@ func TestOrderPartialFill(t *testing.T) {
 	require.NotEmpty(t, askIdStr)
 
 	// 2. Submit a Bid order
+	b2Encoded, err := dto_helper.EncodeUUID(b2)
+	require.NoError(t, err)
+
 	bidRequest := map[string]interface{}{
-		"broker_id":   "broker2",
+		"broker_id":   b2Encoded,
 		"owner_doc":   "doc2",
 		"type":        "BID",
 		"symbol":      symbol,

@@ -1,4 +1,5 @@
 DROP TABLE IF EXISTS trades;
 DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS brokers;
 DROP TYPE IF EXISTS order_status;
 DROP TYPE IF EXISTS order_type;

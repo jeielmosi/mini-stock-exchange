@@ -35,6 +35,15 @@ func TestTradeRepository_GetByID_Found(t *testing.T) {
 	repo := &tradeRepository{db: db}
 	orderRepo, err := NewOrderRepository(db)
 	require.NoError(t, err)
+	brokerRepo, err := NewBrokerRepository(db)
+	require.NoError(t, err)
+
+	broker1ID := uuid.New()
+	broker2ID := uuid.New()
+	err = brokerRepo.Insert(entity.Broker{ID: broker1ID, Name: "broker1"})
+	require.NoError(t, err)
+	err = brokerRepo.Insert(entity.Broker{ID: broker2ID, Name: "broker2"})
+	require.NoError(t, err)
 
 	// Create orders first to satisfy foreign key constraints
 	buyOrderID := uuid.New()
@@ -44,7 +53,7 @@ func TestTradeRepository_GetByID_Found(t *testing.T) {
 
 	buyOrder := &entity.Order{
 		ID:                buyOrderID,
-		BrokerID:          "broker1",
+		BrokerID:          broker1ID,
 		OwnerDoc:          "doc1",
 		Type:              entity.Bid,
 		Symbol:            symbol,
@@ -57,7 +66,7 @@ func TestTradeRepository_GetByID_Found(t *testing.T) {
 	}
 	sellOrder := &entity.Order{
 		ID:                sellOrderID,
-		BrokerID:          "broker2",
+		BrokerID:          broker2ID,
 		OwnerDoc:          "doc2",
 		Type:              entity.Ask,
 		Symbol:            symbol,

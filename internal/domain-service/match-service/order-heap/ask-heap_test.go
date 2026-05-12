@@ -106,12 +106,18 @@ func TestAskHeap(t *testing.T) {
 		repo, err := repository.NewOrderRepository(db)
 		assert.NoError(t, err)
 		defer repo.Stop()
+		brokerRepo, err := repository.NewBrokerRepository(db)
+		assert.NoError(t, err)
+
+		brokerID := uuid.New()
+		err = brokerRepo.Insert(entity.Broker{ID: brokerID, Name: "broker1"})
+		assert.NoError(t, err)
 
 		ah := newAskHeap(symbol, 10, repo)
 
 		order := entity.Order{
 			ID:                uuid.New(),
-			BrokerID:          "broker1",
+			BrokerID:          brokerID,
 			OwnerDoc:          "doc1",
 			Symbol:            symbol,
 			Type:              entity.Ask,
@@ -250,13 +256,25 @@ func TestAskHeap(t *testing.T) {
 		repo, err := repository.NewOrderRepository(db)
 		assert.NoError(t, err)
 		defer repo.Stop()
+		brokerRepo, err := repository.NewBrokerRepository(db)
+		assert.NoError(t, err)
+
+		b0 := uuid.New()
+		b1 := uuid.New()
+		b2 := uuid.New()
+		err = brokerRepo.Insert(entity.Broker{ID: b0, Name: "broker0"})
+		assert.NoError(t, err)
+		err = brokerRepo.Insert(entity.Broker{ID: b1, Name: "broker1"})
+		assert.NoError(t, err)
+		err = brokerRepo.Insert(entity.Broker{ID: b2, Name: "broker2"})
+		assert.NoError(t, err)
 
 		ah := newAskHeap(symbol, 2, repo)
 
 		// Order in repo that should be picked up by fill
 		o0 := entity.Order{
 			ID:                uuid.New(),
-			BrokerID:          "broker0",
+			BrokerID:          b0,
 			OwnerDoc:          "doc0",
 			Symbol:            symbol,
 			Price:             decimal.NewFromInt(5),
@@ -274,7 +292,7 @@ func TestAskHeap(t *testing.T) {
 
 		o1 := entity.Order{
 			ID:                uuid.New(),
-			BrokerID:          "broker1",
+			BrokerID:          b1,
 			OwnerDoc:          "doc1",
 			Symbol:            symbol,
 			Price:             decimal.NewFromInt(10),
@@ -292,7 +310,7 @@ func TestAskHeap(t *testing.T) {
 
 		o2 := entity.Order{
 			ID:                uuid.New(),
-			BrokerID:          "broker2",
+			BrokerID:          b2,
 			OwnerDoc:          "doc2",
 			Symbol:            symbol,
 			Price:             decimal.NewFromInt(20),
@@ -316,7 +334,7 @@ func TestAskHeap(t *testing.T) {
 			RemainingQuantity: 100,
 			Type:              entity.Bid,
 			OwnerDoc:          "match",
-			BrokerID:          "match",
+			BrokerID:          uuid.New(),
 		}
 
 		res, err := ah.Pop(match)

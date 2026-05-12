@@ -10,7 +10,8 @@ import (
 
 type Order struct {
 	ID                uuid.UUID
-	BrokerID          string
+	BrokerID          uuid.UUID
+	BrokerName        string
 	OwnerDoc          string
 	Symbol            string
 	Type              OrderType
@@ -23,7 +24,8 @@ type Order struct {
 }
 
 func NewOrder(
-	brokerID, ownerDoc, symbol string,
+	brokerID uuid.UUID,
+	ownerDoc, symbol string,
 	orderType OrderType, price decimal.Decimal,
 	quantity int, validUntil time.Time,
 ) (Order, error) {
