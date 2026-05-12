@@ -20,14 +20,15 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./.volume/postgresql:/var/lib/postgresql/data
   # TODO save the database defore down
 
   migration:
     image: migrate/migrate
     volumes:
       - ./internal/repository/migrations:/migrations
-    command: ["-path=/migrations", "-database", "postgres://postgres:postgres@db:5432/stockexchange?sslmode=disable", "up"]
+    #command: ["-path=/migrations", "-database", "postgres://postgres:postgres@db:5432/stockexchange?sslmode=disable", "up"]
+    entrypoint: sh -c "until nc -z db 5432; do echo waiting for db...; sleep 2; done; migrate -path=/migrations -database 'postgres://postgres:postgres@db:5432/stockexchange?sslmode=disable' up"
     depends_on:
       - db
   prometheus:
@@ -35,10 +36,18 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./.volume/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
 
   grafana:
     image: grafana/grafana
+    user: "0"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - ./.volume/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./.volume/grafana:/var/lib/grafana 
     ports:
       - "3000:3000"
     depends_on:
@@ -46,11 +55,11 @@ services:
       - tempo
 
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo
     command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./.volume/tempo/tempo.yaml:/etc/tempo.yaml
     ports:
       - "4317:4317" # OTLP gRPC
       - "3200:3200" # Tempo API
 
-volumes:
-  postgres_data:
