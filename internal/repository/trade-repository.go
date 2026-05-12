@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 
 	"mini-stock-exchange/internal/config"
 	"mini-stock-exchange/internal/entity"
@@ -34,7 +35,9 @@ func NewTradeRepository(db *sql.DB) (TradeRepository, error) {
 }
 
 func (r *tradeRepository) Stop() error {
-	return r.db.Close()
+	err := r.db.Close()
+	slog.Error("TradeRepository", "error", err)
+	return err
 }
 
 func (r *tradeRepository) GetByID(id uuid.UUID) (entity.Trade, error) {

@@ -44,7 +44,14 @@ func InitLogger() {
 }
 
 func InitTracer(ctx context.Context, serviceName string) (*sdktrace.TracerProvider, error) {
-	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithInsecure())
+	endpoint := "localhost:4317"
+	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" {
+		endpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	}
+	exporter, err := otlptracegrpc.New(ctx,
+		otlptracegrpc.WithInsecure(),
+		otlptracegrpc.WithEndpoint(endpoint),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}

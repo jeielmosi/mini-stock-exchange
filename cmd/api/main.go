@@ -11,6 +11,7 @@ import (
 	"mini-stock-exchange/internal/repository"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	_ "github.com/lib/pq"
 )
 
@@ -48,6 +49,12 @@ func main() {
 	defer tradeRepo.Stop()
 
 	r := chi.NewRouter()
+
+	// Useful built-in middlewares
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.RequestID)
+
 	ctrl := controller.NewController(r, orderRepo, tradeRepo)
 	ctrl.RegisterRoutes(r)
 

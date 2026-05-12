@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 
 	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/entity"
@@ -42,7 +43,9 @@ func NewOrderRepository(db *sql.DB) (OrderRepository, error) {
 }
 
 func (r *orderRepository) Stop() error {
-	return r.db.Close()
+	err := r.db.Close()
+	slog.Error("OrderRepository", "error", err)
+	return err
 }
 
 func (r *orderRepository) Insert(order entity.Order) error {
