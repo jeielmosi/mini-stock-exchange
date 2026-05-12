@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func mustNewV7() uuid.UUID {
@@ -22,20 +21,16 @@ func mustNewV7() uuid.UUID {
 	return id
 }
 
-type MockCentralizer struct {
-	mock.Mock
-}
-
-func (m *MockCentralizer) RouteOrder(ctx context.Context, order entity.Order) error {
-	args := m.Called(ctx, order)
-	return args.Error(0)
-}
-
 func TestMatchService_SubmitOrder_Match(t *testing.T) {
-	orderRepo, cleanup := repository.NewMockOrderRepository()
+	ctx := context.Background()
+	db, cleanup, err := repository.SetupTestDB(ctx)
+	assert.NoError(t, err)
 	defer cleanup()
-	centralizer := new(MockCentralizer)
-	svc := NewMatchService(orderRepo, centralizer)
+	orderRepo, err := repository.NewOrderRepository(db)
+	assert.NoError(t, err)
+	defer orderRepo.Stop()
+	orch := NewMockOrchestrator(orderRepo)
+	svc := NewMatchService(orch)
 
 	symbol := "AAPL"
 	bidPrice := float64(150)
@@ -48,26 +43,22 @@ func TestMatchService_SubmitOrder_Match(t *testing.T) {
 		ValidUntil: time.Now().Add(24 * time.Hour).Format(time.DateOnly),
 	}
 
-	centralizer.On("RouteOrder", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-		// Simulate matching in background or directly if we want to test the match logic.
-		// But here we are testing MatchService.SubmitOrder which now calls centralizer.
-		// Since the original match logic was in MatchService, and we moved it to Executor,
-		// this test might need adjustment.
-		// For now, let's just make sure centralizer is called.
-	})
-
 	dto, err := svc.SubmitOrder(context.Background(), bidOrder)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, dto.ID)
-	centralizer.AssertExpectations(t)
 }
 
 func TestMatchService_SubmitOrder_PartialMatch(t *testing.T) {
-	orderRepo, cleanup := repository.NewMockOrderRepository()
+	ctx := context.Background()
+	db, cleanup, err := repository.SetupTestDB(ctx)
+	assert.NoError(t, err)
 	defer cleanup()
-	centralizer := new(MockCentralizer)
-	svc := NewMatchService(orderRepo, centralizer)
+	orderRepo, err := repository.NewOrderRepository(db)
+	assert.NoError(t, err)
+	defer orderRepo.Stop()
+	orch := NewMockOrchestrator(orderRepo)
+	svc := NewMatchService(orch)
 
 	symbol := "AAPL"
 	bidPrice := float64(150)
@@ -80,20 +71,22 @@ func TestMatchService_SubmitOrder_PartialMatch(t *testing.T) {
 		ValidUntil: time.Now().Add(24 * time.Hour).Format(time.DateOnly),
 	}
 
-	centralizer.On("RouteOrder", mock.Anything, mock.Anything).Return(nil)
-
 	dto, err := svc.SubmitOrder(context.Background(), bidOrder)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, dto.ID)
-	centralizer.AssertExpectations(t)
 }
 
 func TestMatchService_SubmitOrder_NoMatch(t *testing.T) {
-	orderRepo, cleanup := repository.NewMockOrderRepository()
+	ctx := context.Background()
+	db, cleanup, err := repository.SetupTestDB(ctx)
+	assert.NoError(t, err)
 	defer cleanup()
-	centralizer := new(MockCentralizer)
-	svc := NewMatchService(orderRepo, centralizer)
+	orderRepo, err := repository.NewOrderRepository(db)
+	assert.NoError(t, err)
+	defer orderRepo.Stop()
+	orch := NewMockOrchestrator(orderRepo)
+	svc := NewMatchService(orch)
 
 	symbol := "AAPL"
 	bidPrice := float64(100)
@@ -106,20 +99,22 @@ func TestMatchService_SubmitOrder_NoMatch(t *testing.T) {
 		ValidUntil: time.Now().Add(24 * time.Hour).Format(time.DateOnly),
 	}
 
-	centralizer.On("RouteOrder", mock.Anything, mock.Anything).Return(nil)
-
 	dto, err := svc.SubmitOrder(context.Background(), bidOrder)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, dto.ID)
-	centralizer.AssertExpectations(t)
 }
 
 func TestMatchService_SubmitOrder_MultipleMatches(t *testing.T) {
-	orderRepo, cleanup := repository.NewMockOrderRepository()
+	ctx := context.Background()
+	db, cleanup, err := repository.SetupTestDB(ctx)
+	assert.NoError(t, err)
 	defer cleanup()
-	centralizer := new(MockCentralizer)
-	svc := NewMatchService(orderRepo, centralizer)
+	orderRepo, err := repository.NewOrderRepository(db)
+	assert.NoError(t, err)
+	defer orderRepo.Stop()
+	orch := NewMockOrchestrator(orderRepo)
+	svc := NewMatchService(orch)
 
 	symbol := "AAPL"
 	bidPrice := float64(150)
@@ -132,20 +127,22 @@ func TestMatchService_SubmitOrder_MultipleMatches(t *testing.T) {
 		ValidUntil: time.Now().Add(24 * time.Hour).Format(time.DateOnly),
 	}
 
-	centralizer.On("RouteOrder", mock.Anything, mock.Anything).Return(nil)
-
 	dto, err := svc.SubmitOrder(context.Background(), bidOrder)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, dto.ID)
-	centralizer.AssertExpectations(t)
 }
 
 func TestMatchService_SubmitOrder_AskMatch(t *testing.T) {
-	orderRepo, cleanup := repository.NewMockOrderRepository()
+	ctx := context.Background()
+	db, cleanup, err := repository.SetupTestDB(ctx)
+	assert.NoError(t, err)
 	defer cleanup()
-	centralizer := new(MockCentralizer)
-	svc := NewMatchService(orderRepo, centralizer)
+	orderRepo, err := repository.NewOrderRepository(db)
+	assert.NoError(t, err)
+	defer orderRepo.Stop()
+	orch := NewMockOrchestrator(orderRepo)
+	svc := NewMatchService(orch)
 
 	symbol := "AAPL"
 	askPrice := float64(130)
@@ -158,11 +155,8 @@ func TestMatchService_SubmitOrder_AskMatch(t *testing.T) {
 		ValidUntil: time.Now().Add(24 * time.Hour).Format(time.DateOnly),
 	}
 
-	centralizer.On("RouteOrder", mock.Anything, mock.Anything).Return(nil)
-
 	dto, err := svc.SubmitOrder(context.Background(), askOrder)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, dto.ID)
-	centralizer.AssertExpectations(t)
 }

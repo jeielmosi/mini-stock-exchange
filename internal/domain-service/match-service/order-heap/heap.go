@@ -13,18 +13,29 @@ type OrderHeap interface {
 	Pop(order entity.Order) (*MatchDTO, error)
 }
 
+type OrderQueue interface {
+	Push(order entity.Order)
+	Peek() (entity.Order, bool)
+	Drop()
+	PeekBack() (entity.Order, bool)
+	DropBack()
+	Len() int
+	Cap() int
+}
+
 type MatchDTO struct {
 	Matches []entity.Order
 	Expired []uuid.UUID
+	OK      bool
 }
 
-type queryTrigger struct {
+type QueryTrigger struct {
 	Price     decimal.Decimal
 	CreatedAt time.Time
 }
 
-func newQueryTrigger(order entity.Order) *queryTrigger {
-	return &queryTrigger{
+func NewQueryTrigger(order entity.Order) *QueryTrigger {
+	return &QueryTrigger{
 		Price:     order.Price,
 		CreatedAt: order.CreatedAt,
 	}
@@ -35,7 +46,7 @@ type orderHeap struct {
 	cmp  func(a *entity.Order, b *entity.Order) bool
 }
 
-func newOrderHeap(capacity int, cmp func(a *entity.Order, b *entity.Order) bool) *orderHeap {
+func NewOrderHeap(capacity int, cmp func(a *entity.Order, b *entity.Order) bool) OrderQueue {
 	return &orderHeap{
 		heap: make([]entity.Order, 0, capacity),
 		cmp:  cmp,
@@ -47,16 +58,7 @@ func (oh *orderHeap) Len() int {
 }
 
 func (oh *orderHeap) Cap() int {
-	return cap(oh.heap)
-}
-
-func (oh *orderHeap) PopBack() (entity.Order, bool) {
-	if len(oh.heap) == 0 {
-		return entity.Order{}, false
-	}
-	last := oh.heap[len(oh.heap)-1]
-	oh.heap = oh.heap[:len(oh.heap)-1]
-	return last, true
+	return cap(oh.heap) - len(oh.heap)
 }
 
 func (oh *orderHeap) Push(order entity.Order) {
@@ -119,52 +121,13 @@ func (oh *orderHeap) Drop() {
 	}
 }
 
-func couldMatch(bid *entity.Order, ask *entity.Order) bool {
-	if bid == nil || ask == nil {
-		return false
+func (oh *orderHeap) PeekBack() (entity.Order, bool) {
+	if len(oh.heap) == 0 {
+		return entity.Order{}, false
 	}
-
-	if (bid.Type == entity.Ask) && (ask.Type == entity.Bid) {
-		return couldMatch(ask, bid)
-	}
-
-	if (bid.Type != entity.Bid) || (ask.Type != entity.Ask) {
-		return false
-	}
-
-	return bid.Price.GreaterThanOrEqual(ask.Price)
+	return oh.heap[len(oh.heap)-1], true
 }
 
-func (oh *orderHeap) Pop(order entity.Order) MatchDTO {
-	now := time.Now()
-	retry := []entity.Order{}
-	matches := []entity.Order{}
-	expired := []uuid.UUID{}
-
-	quantity := order.Quantity
-	for 0 < quantity {
-		match, ok := oh.Peek()
-		if !ok || !couldMatch(&order, &match) {
-			break
-		}
-		oh.Drop()
-		if order.OwnerDoc == match.OwnerDoc {
-			retry = append(retry, match)
-			continue
-		}
-		if match.ValidUntil.Before(now) {
-			expired = append(expired, match.ID)
-			continue
-		}
-		matches = append(matches, match)
-		quantity -= match.Quantity
-	}
-	for _, o := range retry {
-		oh.Push(o)
-	}
-
-	return MatchDTO{
-		Matches: matches,
-		Expired: expired,
-	}
+func (oh *orderHeap) DropBack() {
+	oh.heap = oh.heap[:len(oh.heap)-1]
 }

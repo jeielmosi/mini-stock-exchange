@@ -11,7 +11,6 @@ import (
 
 	"mini-stock-exchange/internal/config"
 	"mini-stock-exchange/internal/controller"
-	match_service "mini-stock-exchange/internal/domain-service/match-service"
 	"mini-stock-exchange/internal/dto"
 	dto_helper "mini-stock-exchange/internal/dto/helper"
 	"mini-stock-exchange/internal/entity"
@@ -26,15 +25,23 @@ import (
 func setupTestServer() (*httptest.Server, repository.OrderRepository, func()) {
 	config.LoadTest(10)
 	ctx := context.Background()
-	db, cleanup := repository.SetupTestDB(ctx)
+	db, cleanup, err := repository.SetupTestDB(ctx)
+	if err != nil {
+		panic(err)
+	}
 
-	orderRepo := repository.NewOrderRepository(db)
-	orchestrator := match_service.NewMockOrchestrator(orderRepo)
-	matchService := match_service.NewMatchService(orderRepo, orchestrator)
-	orderController := controller.NewOrderController(matchService)
+	orderRepo, err := repository.NewOrderRepository(db)
+	if err != nil {
+		panic(err)
+	}
+	tradeRepo, err := repository.NewTradeRepository(db)
+	if err != nil {
+		panic(err)
+	}
 
 	r := chi.NewRouter()
-	orderController.RegisterRoutes(r)
+	ctrl := controller.NewMockController(r, orderRepo, tradeRepo)
+	ctrl.RegisterRoutes(r)
 
 	server := httptest.NewServer(r)
 
@@ -235,7 +242,7 @@ func TestOrderPartialFill(t *testing.T) {
 	bidPrice := float64(150)
 	askPrice := float64(140)
 
-	// 1. Submit an Ask order for 10
+	// 1. Submit an Ask order
 	askRequest := map[string]interface{}{
 		"broker_id":   "broker1",
 		"owner_doc":   "doc1",
@@ -261,7 +268,7 @@ func TestOrderPartialFill(t *testing.T) {
 	askIdStr := askId.String()
 	require.NotEmpty(t, askIdStr)
 
-	// 2. Submit a Bid order for 5
+	// 2. Submit a Bid order
 	bidRequest := map[string]interface{}{
 		"broker_id":   "broker2",
 		"owner_doc":   "doc2",

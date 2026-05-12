@@ -1,24 +1,23 @@
 package order_heaps
 
 import (
-	"errors"
 	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/entity"
 	"mini-stock-exchange/internal/repository"
+	"time"
 )
 
-func lessQt(lhs *queryTrigger, rhs *queryTrigger) bool {
+func lessQt(lhs *QueryTrigger, rhs *QueryTrigger) bool {
 	if lhs == nil {
-		return true
+		return false
 	}
 	if rhs == nil {
-		return false
+		return true
 	}
 
 	if lhs.Price.Equal(rhs.Price) {
 		return lhs.CreatedAt.Before(rhs.CreatedAt)
 	}
-
 	return lhs.Price.LessThan(rhs.Price)
 }
 
@@ -30,50 +29,88 @@ func lessOrder(lhs *entity.Order, rhs *entity.Order) bool {
 		return false
 	}
 
-	return lessQt(newQueryTrigger(*lhs), newQueryTrigger(*rhs))
+	return lessQt(NewQueryTrigger(*lhs), NewQueryTrigger(*rhs))
 }
 
 type AskHeap struct {
-	heap      *orderHeap
+	heap      OrderQueue
 	orderRepo repository.OrderRepository
-	qt        *queryTrigger
+	qt        *QueryTrigger
 	symbol    string
 }
 
 func NewAskHeap(symbol string, capacity int, orderRepo repository.OrderRepository) OrderHeap {
 	return &AskHeap{
-		heap:      newOrderHeap(capacity, lessOrder),
+		heap:      NewOrderHeap(capacity, lessOrder),
 		orderRepo: orderRepo,
 		symbol:    symbol,
 	}
 }
 
 func (a *AskHeap) Push(order entity.Order) {
-	if a.heap.Len() == a.heap.Cap() {
-		var qt *queryTrigger = nil
-		last, ok := a.heap.PopBack()
-		if ok {
-			qt = newQueryTrigger(last)
-		}
-		if lessQt(qt, a.qt) {
-			a.qt = qt
-		}
+	if a.qt != nil && lessQt(a.qt, NewQueryTrigger(order)) {
+		return
+	}
+	if a.heap.Cap() == 0 {
+		a.DropBack()
 	}
 	a.heap.Push(order)
 }
 
+// could return a valid dto and error
 func (a *AskHeap) Pop(order entity.Order) (*MatchDTO, error) {
-	err := a.fill()
-	if err != nil {
-		return nil, err
+	now := time.Now()
+	remaining := order.RemainingQuantity
+	var retry []entity.Order
+	var dto MatchDTO
+	var err error
+	for true {
+		if remaining <= 0 {
+			break
+		}
+		err = a.Fill()
+		if err != nil {
+			break
+		}
+		match, ok := a.heap.Peek()
+		if !ok || order.Price.LessThan(match.Price) {
+			break
+		}
+		a.heap.Drop()
+		if match.OwnerDoc == order.OwnerDoc {
+			retry = append(retry, match)
+			continue
+		}
+		if match.ValidUntil.Before(now) {
+			dto.Expired = append(dto.Expired, match.ID)
+			continue
+		}
+		remaining -= match.RemainingQuantity
+		dto.Matches = append(dto.Matches, match)
 	}
-	dto := a.heap.Pop(order)
 
-	return &dto, nil
+	for _, r := range retry {
+		a.heap.Push(r)
+	}
+
+	return &dto, err
 }
 
-func (a *AskHeap) fill() error {
-	if a.heap.Len() == 0 {
+func (a *AskHeap) DropBack() {
+	var qt *QueryTrigger = nil
+	last, ok := a.heap.PeekBack()
+	if ok {
+		qt = NewQueryTrigger(last)
+		a.heap.DropBack()
+	}
+	if lessQt(qt, a.qt) {
+		a.qt = qt
+	}
+}
+
+func (a *AskHeap) Fill() error {
+	top, ok := a.heap.Peek()
+	if !ok {
 		orders, err := a.orderRepo.GetAsks(a.symbol, a.heap.Cap())
 		if err != nil {
 			return err
@@ -83,12 +120,11 @@ func (a *AskHeap) fill() error {
 		}
 		return nil
 	}
-	top, ok := a.heap.Peek()
-	if !ok {
-		return errors.New("heap is not empty, but can not peek")
+	if a.qt == nil {
+		return nil
 	}
-	if a.qt != nil && lessQt(a.qt, newQueryTrigger(top)) {
-		qf := dto.NewQueryFill(a.qt.Price, a.qt.CreatedAt, a.symbol, a.heap.Cap()-a.heap.Len())
+	if lessQt(a.qt, NewQueryTrigger(top)) {
+		qf := dto.NewQueryFill(top.ID, top.Price, top.CreatedAt, a.symbol, a.heap.Cap())
 		orders, err := a.orderRepo.GetAsksLT(qf)
 		if err != nil {
 			return err
@@ -98,6 +134,5 @@ func (a *AskHeap) fill() error {
 		}
 		a.qt = nil
 	}
-
 	return nil
 }

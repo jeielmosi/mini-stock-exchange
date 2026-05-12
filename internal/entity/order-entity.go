@@ -35,6 +35,7 @@ func NewOrder(
 	if validUntil.Before(time.Now()) {
 		return Order{}, fmt.Errorf("order already expirated")
 	}
+
 	return Order{
 		ID:                uuid,
 		BrokerID:          brokerID,

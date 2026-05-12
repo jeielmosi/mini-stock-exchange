@@ -1,18 +1,18 @@
 package order_heaps
 
 import (
-	"errors"
 	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/entity"
 	"mini-stock-exchange/internal/repository"
+	"time"
 )
 
-func greaterQt(lhs *queryTrigger, rhs *queryTrigger) bool {
+func greaterQt(lhs *QueryTrigger, rhs *QueryTrigger) bool {
 	if lhs == nil {
-		return true
+		return false
 	}
 	if rhs == nil {
-		return false
+		return true
 	}
 
 	if lhs.Price.Equal(rhs.Price) {
@@ -29,49 +29,88 @@ func greaterOrder(lhs *entity.Order, rhs *entity.Order) bool {
 		return true
 	}
 
-	return greaterQt(newQueryTrigger(*lhs), newQueryTrigger(*rhs))
+	return greaterQt(NewQueryTrigger(*lhs), NewQueryTrigger(*rhs))
 }
 
 type BidHeap struct {
-	heap      *orderHeap
+	heap      OrderQueue
 	orderRepo repository.OrderRepository
-	qt        *queryTrigger
+	qt        *QueryTrigger
 	symbol    string
 }
 
 func NewBidHeap(symbol string, capacity int, orderRepo repository.OrderRepository) OrderHeap {
 	return &BidHeap{
-		heap:      newOrderHeap(capacity, greaterOrder),
+		heap:      NewOrderHeap(capacity, greaterOrder),
 		orderRepo: orderRepo,
 		symbol:    symbol,
 	}
 }
 
 func (b *BidHeap) Push(order entity.Order) {
-	if b.heap.Len() == b.heap.Cap() {
-		var qt *queryTrigger = nil
-		last, ok := b.heap.PopBack()
-		if ok {
-			qt = newQueryTrigger(last)
-		}
-		if greaterQt(qt, b.qt) {
-			b.qt = qt
-		}
+	if b.qt != nil && greaterQt(b.qt, NewQueryTrigger(order)) {
+		return
+	}
+	if b.heap.Cap() == 0 {
+		b.DropBack()
 	}
 	b.heap.Push(order)
 }
 
+// could return a valid dto and error
 func (b *BidHeap) Pop(order entity.Order) (*MatchDTO, error) {
-	err := b.fill()
-	if err != nil {
-		return nil, err
+	now := time.Now()
+	remaining := order.RemainingQuantity
+	var retry []entity.Order
+	var dto MatchDTO
+	var err error
+	for true {
+		if remaining <= 0 {
+			break
+		}
+		err = b.Fill()
+		if err != nil {
+			break
+		}
+		match, ok := b.heap.Peek()
+		if !ok || order.Price.GreaterThan(match.Price) {
+			break
+		}
+		b.heap.Drop()
+		if match.OwnerDoc == order.OwnerDoc {
+			retry = append(retry, match)
+			continue
+		}
+		if match.ValidUntil.Before(now) {
+			dto.Expired = append(dto.Expired, match.ID)
+			continue
+		}
+		remaining -= match.RemainingQuantity
+		dto.Matches = append(dto.Matches, match)
 	}
-	dto := b.heap.Pop(order)
-	return &dto, nil
+
+	for _, r := range retry {
+		b.heap.Push(r)
+	}
+
+	return &dto, err
 }
 
-func (b *BidHeap) fill() error {
-	if b.heap.Len() == 0 {
+func (b *BidHeap) DropBack() {
+	var qt *QueryTrigger = nil
+	last, ok := b.heap.PeekBack()
+	if ok {
+		qt = NewQueryTrigger(last)
+		b.heap.DropBack()
+	}
+	if greaterQt(qt, b.qt) {
+		b.qt = qt
+	}
+}
+
+func (b *BidHeap) Fill() error {
+	top, ok := b.heap.Peek()
+	if !ok {
 		orders, err := b.orderRepo.GetBids(b.symbol, b.heap.Cap())
 		if err != nil {
 			return err
@@ -81,12 +120,11 @@ func (b *BidHeap) fill() error {
 		}
 		return nil
 	}
-	top, ok := b.heap.Peek()
-	if !ok {
-		return errors.New("heap is not empty, but can not peek")
+	if b.qt == nil {
+		return nil
 	}
-	if greaterQt(b.qt, newQueryTrigger(top)) {
-		qf := dto.NewQueryFill(b.qt.Price, b.qt.CreatedAt, b.symbol, b.heap.Cap()-b.heap.Len())
+	if greaterQt(b.qt, NewQueryTrigger(top)) {
+		qf := dto.NewQueryFill(top.ID, top.Price, top.CreatedAt, b.symbol, b.heap.Cap())
 		orders, err := b.orderRepo.GetBidsGT(qf)
 		if err != nil {
 			return err

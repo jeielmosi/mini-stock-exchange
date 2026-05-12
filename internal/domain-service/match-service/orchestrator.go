@@ -6,6 +6,7 @@ import (
 
 	"mini-stock-exchange/internal/entity"
 	"mini-stock-exchange/internal/repository"
+	"mini-stock-exchange/internal/usecase"
 )
 
 type Orchestrator interface {
@@ -20,15 +21,21 @@ var (
 type orchestrator struct {
 	executors map[string]Executor
 	orderRepo repository.OrderRepository
+	tradeRepo repository.TradeRepository
 	mu        sync.RWMutex
+
+	matchUsecase usecase.OrderMatchUsecase
+	createTrade  usecase.CreateTradeUsecase
 }
 
 func NewOrchestrator(orderRepo repository.OrderRepository) Orchestrator {
 	once.Do(func() {
 		orch = &orchestrator{
-			executors: make(map[string]Executor),
-			orderRepo: orderRepo,
-			mu:        sync.RWMutex{},
+			executors:    make(map[string]Executor),
+			orderRepo:    orderRepo,
+			mu:           sync.RWMutex{},
+			matchUsecase: usecase.NewOrderMatchUsecase(),
+			createTrade:  usecase.NewCreateTradeUsecase(),
 		}
 	})
 	return orch
@@ -44,7 +51,7 @@ func (o *orchestrator) RouteOrder(ctx context.Context, order entity.Order) error
 		// Double-check after acquiring write lock
 		executor, ok = o.executors[order.Symbol]
 		if !ok {
-			executor = NewExecutor(order.Symbol, o.orderRepo)
+			executor = NewExecutor(order.Symbol, o.orderRepo, o.matchUsecase, o.createTrade)
 			o.executors[order.Symbol] = executor
 		}
 		o.mu.Unlock()

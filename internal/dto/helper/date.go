@@ -16,6 +16,6 @@ func DateToEndOfDay(timestamp string) (time.Time, error) {
 		return bg, err
 	}
 
-	ed := time.Date(bg.Year(), bg.Month(), bg.Day()+1, 0, 0, 0, 0, loc).Add(-time.Nanosecond).UTC()
+	ed := time.Date(bg.Year(), bg.Month(), bg.Day()+1, 0, 0, 0, 0, loc).Add(-time.Nanosecond)
 	return ed, nil
 }

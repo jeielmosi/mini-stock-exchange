@@ -1,6 +1,7 @@
 package order_heaps
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 
 func newBidHeap(symbol string, capacity int, orderRepo repository.OrderRepository) *BidHeap {
 	return &BidHeap{
-		heap:      newOrderHeap(capacity, greaterOrder),
+		heap:      NewOrderHeap(capacity, greaterOrder),
 		orderRepo: orderRepo,
 		symbol:    symbol,
 	}
@@ -25,8 +26,14 @@ func TestNewBidHeap(t *testing.T) {
 	now := time.Now().UTC()
 
 	t.Run("Success", func(t *testing.T) {
-		repo, cleanup := repository.NewMockOrderRepository()
+		ctx := context.Background()
+		db, cleanup, err := repository.SetupTestDB(ctx)
+		assert.NoError(t, err)
 		defer cleanup()
+
+		repo, err := repository.NewOrderRepository(db)
+		assert.NoError(t, err)
+		defer repo.Stop()
 		orders := []entity.Order{
 			{
 				ID:         uuid.New(),

@@ -16,3 +16,15 @@ type Trade struct {
 	Quantity    int
 	ExecutedAt  time.Time
 }
+
+func NewTrade(id uuid.UUID, buyOrderID uuid.UUID, sellOrderID uuid.UUID, symbol string, price decimal.Decimal, quantity int, executedAt time.Time) Trade {
+	return Trade{
+		ID:          id,
+		BuyOrderID:  buyOrderID,
+		SellOrderID: sellOrderID,
+		Symbol:      symbol,
+		Price:       price,
+		Quantity:    quantity,
+		ExecutedAt:  executedAt,
+	}
+}

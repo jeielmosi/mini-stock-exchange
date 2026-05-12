@@ -21,30 +21,38 @@ type Executor interface {
 }
 
 type executor struct {
-	symbol    string
-	bidHeap   order_heap.OrderHeap
-	askHeap   order_heap.OrderHeap
-	orderRepo repository.OrderRepository
-	mu        sync.Mutex
-	orderChan chan entity.Order
-	ctx       context.Context
-	cancel    context.CancelFunc
+	symbol       string
+	bidHeap      order_heap.OrderHeap
+	askHeap      order_heap.OrderHeap
+	orderRepo    repository.OrderRepository
+	matchUsecase usecase.OrderMatchUsecase
+	createTrade  usecase.CreateTradeUsecase
+	mu           sync.Mutex
+	orderChan    chan entity.Order
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
-func NewExecutor(symbol string, orderRepo repository.OrderRepository) Executor {
+// TODO should ignore some erros, do not
+func NewExecutor(
+	symbol string, orderRepo repository.OrderRepository,
+	matchUsecase usecase.OrderMatchUsecase, createTrade usecase.CreateTradeUsecase,
+) Executor {
 	bidHeap := order_heap.NewBidHeap(symbol, config.ENV.ExecutorCapacity, orderRepo)
 	askHeap := order_heap.NewAskHeap(symbol, config.ENV.ExecutorCapacity, orderRepo)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	e := &executor{
-		symbol:    symbol,
-		bidHeap:   bidHeap,
-		askHeap:   askHeap,
-		orderRepo: orderRepo,
-		orderChan: make(chan entity.Order, config.ENV.ExecutorCapacity),
-		ctx:       ctx,
-		cancel:    cancel,
+		symbol:       symbol,
+		bidHeap:      bidHeap,
+		askHeap:      askHeap,
+		orderRepo:    orderRepo,
+		matchUsecase: matchUsecase,
+		createTrade:  createTrade,
+		orderChan:    make(chan entity.Order, config.ENV.ExecutorCapacity),
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 
 	go e.run()
@@ -91,14 +99,14 @@ func (e *executor) matchMake(order entity.Order) {
 		observability.MatchingLatency.Observe(time.Since(start).Seconds())
 	}()
 
-	var orderHeap order_heap.OrderHeap
+	var OrderHeap order_heap.OrderHeap
 	var matchHeap order_heap.OrderHeap
 	switch order.Type {
 	case entity.Bid:
-		orderHeap = e.bidHeap
+		OrderHeap = e.bidHeap
 		matchHeap = e.askHeap
 	case entity.Ask:
-		orderHeap = e.askHeap
+		OrderHeap = e.askHeap
 		matchHeap = e.bidHeap
 	default:
 		return
@@ -107,18 +115,22 @@ func (e *executor) matchMake(order entity.Order) {
 	dto, err := matchHeap.Pop(order)
 	if err != nil {
 		slog.Error("failed to pop order from heap", "error", err, "order_id", order.ID)
-		return
+		if dto == nil {
+			return
+		}
 	}
 
 	if err := e.orderRepo.Expire(dto.Expired); err != nil {
 		slog.Error("failed to update expired order", "error", err)
-		return
 	}
 
-	for _, match := range dto.Matches {
+	for m, match := range dto.Matches {
 		if err := e.match(&order, &match); err != nil {
 			slog.Error("failed to match order", "error", err, "order_id", order.ID, "match_id", match.ID)
-			panic(err)
+			for p := m; p < len(dto.Matches); p++ {
+				matchHeap.Push(dto.Matches[p])
+			}
+			break
 		}
 		if 0 < match.RemainingQuantity {
 			matchHeap.Push(match)
@@ -126,12 +138,35 @@ func (e *executor) matchMake(order entity.Order) {
 	}
 
 	if 0 < order.RemainingQuantity {
-		orderHeap.Push(order)
+		OrderHeap.Push(order)
 	}
 }
 
-func (e *executor) match(bid *entity.Order, ask *entity.Order) error {
-	trade, err := usecase.NewTrade(bid, ask)
+func (e *executor) match(order1 *entity.Order, order2 *entity.Order) error {
+	if order1 == nil || order2 == nil {
+		return fmt.Errorf("order is nil")
+	}
+
+	bid, ask := order1, order2
+	if bid.Type == entity.Ask && ask.Type == entity.Bid {
+		bid, ask = ask, bid
+	}
+	if bid.Type == entity.Ask || ask.Type == entity.Bid {
+		return fmt.Errorf("order type mismatch")
+	}
+
+	dto, err := e.matchUsecase.MatchOrder(bid, ask)
+	if err != nil {
+		return fmt.Errorf("failed to match order: %w", err)
+	}
+
+	trade, err := e.createTrade.CreateTrade(dto)
+	defer func() {
+		if err != nil {
+			e.matchUsecase.UnmatchOrder(dto)
+		}
+	}()
+
 	if err != nil {
 		return fmt.Errorf("failed to create trade: %w", err)
 	}
@@ -142,7 +177,7 @@ func (e *executor) match(bid *entity.Order, ask *entity.Order) error {
 		Trade: trade,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to update order: %w", err)
+		return fmt.Errorf("failed to save match to database: %w", err)
 	}
 
 	observability.TradesExecuted.Inc()

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/entity"
@@ -18,6 +19,7 @@ type MatchDTO struct {
 }
 
 type OrderRepository interface {
+	Stop() error
 	Insert(order entity.Order) error
 	GetByID(id uuid.UUID) (entity.Order, error)
 	Match(ctx context.Context, match MatchDTO) error
@@ -28,22 +30,29 @@ type OrderRepository interface {
 	GetAsksLT(dto dto.QueryFill) ([]entity.Order, error)
 }
 
-type postgresOrderRepository struct {
+type orderRepository struct {
 	db *sql.DB
 }
 
-func NewOrderRepository(db *sql.DB) OrderRepository {
-	return &postgresOrderRepository{db: db}
+func NewOrderRepository(db *sql.DB) (OrderRepository, error) {
+	if db == nil {
+		return nil, errors.New("db is nil")
+	}
+	return &orderRepository{db: db}, nil
 }
 
-func (r *postgresOrderRepository) Insert(order entity.Order) error {
+func (r *orderRepository) Stop() error {
+	return r.db.Close()
+}
+
+func (r *orderRepository) Insert(order entity.Order) error {
 	query := `INSERT INTO orders (id, broker_id, owner_doc, type, symbol, price, quantity, remaining_quantity, valid_until, status, created_at) 
 	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 	_, err := r.db.Exec(query, order.ID, order.BrokerID, order.OwnerDoc, order.Type, order.Symbol, order.Price, order.Quantity, order.RemainingQuantity, order.ValidUntil, order.Status, order.CreatedAt)
 	return err
 }
 
-func (r *postgresOrderRepository) GetByID(id uuid.UUID) (entity.Order, error) {
+func (r *orderRepository) GetByID(id uuid.UUID) (entity.Order, error) {
 	order := entity.Order{}
 	query := `SELECT id, broker_id, owner_doc, type, symbol, price, quantity, remaining_quantity, valid_until, status, created_at FROM orders WHERE id = $1`
 	err := r.db.QueryRow(query, id).Scan(&order.ID, &order.BrokerID, &order.OwnerDoc, &order.Type, &order.Symbol, &order.Price, &order.Quantity, &order.RemainingQuantity, &order.ValidUntil, &order.Status, &order.CreatedAt)
@@ -53,7 +62,7 @@ func (r *postgresOrderRepository) GetByID(id uuid.UUID) (entity.Order, error) {
 	return order, nil
 }
 
-func (r *postgresOrderRepository) Match(ctx context.Context, match MatchDTO) error {
+func (r *orderRepository) Match(ctx context.Context, match MatchDTO) error {
 
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -96,40 +105,26 @@ func (r *postgresOrderRepository) Match(ctx context.Context, match MatchDTO) err
 	return nil
 }
 
-func (r *postgresOrderRepository) Expire(ids []uuid.UUID) error {
+func (r *orderRepository) Expire(ids []uuid.UUID) error {
 	if len(ids) == 0 {
 		return nil
 	}
 
-	ctx := context.Background()
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+	query := `UPDATE orders
+	SET status = 'EXPIRED'
+	WHERE id = ANY($1::uuid[])
+	AND status IN ('PENDING', 'PARTIAL', 'EXPIRED')
+	`
+	_, err := r.db.Exec(query, ids)
 
-	for _, id := range ids {
-		_, err = tx.ExecContext(ctx,
-			`UPDATE orders SET status = 'EXPIRED' WHERE id = $1 AND status IN ('PENDING', 'PARTIAL', 'EXPIRED')`,
-			id,
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	if err = tx.Commit(); err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
-func (r *postgresOrderRepository) GetBids(symbol string, limit int) ([]entity.Order, error) {
+func (r *orderRepository) GetBids(symbol string, limit int) ([]entity.Order, error) {
 	query := `SELECT id, broker_id, owner_doc, type, symbol, price,
 		quantity, remaining_quantity, valid_until, status, created_at
 	FROM orders 
-	WHERE symbol = $1 AND type = 'BID' AND status IN ('PENDING', 'PARTIAL')
+	WHERE symbol = $1 AND type = 'BID' AND status IN ('PENDING', 'PARTIAL') AND NOW() < valid_until
 	ORDER BY price DESC, created_at ASC
 	LIMIT $2
 	`
@@ -144,15 +139,16 @@ func (r *postgresOrderRepository) GetBids(symbol string, limit int) ([]entity.Or
 	return rowsToOrders(rows)
 }
 
-func (r *postgresOrderRepository) GetBidsGT(qf dto.QueryFill) ([]entity.Order, error) {
+func (r *orderRepository) GetBidsGT(qf dto.QueryFill) ([]entity.Order, error) {
 	query := `SELECT id, broker_id, owner_doc, type, symbol, price,
 		quantity, remaining_quantity, valid_until, status, created_at
 	FROM orders 
-	WHERE symbol = $1 AND type = 'BID' AND status IN ('PENDING', 'PARTIAL') AND ( $2 < price OR (price = $2 AND created_at <= $3) )
+	WHERE symbol = $1 AND type = 'BID' AND ( $2 < price OR (price = $2 AND created_at <= $3) )
+		AND status IN ('PENDING', 'PARTIAL') AND id != $4
 	ORDER BY price DESC, created_at ASC
-	LIMIT $4
+	LIMIT $5
 	`
-	args := []interface{}{qf.Symbol, qf.Price, qf.CreatedAt, qf.Limit}
+	args := []interface{}{qf.Symbol, qf.Price, qf.CreatedAt, qf.ID, qf.Limit}
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -163,11 +159,11 @@ func (r *postgresOrderRepository) GetBidsGT(qf dto.QueryFill) ([]entity.Order, e
 	return rowsToOrders(rows)
 }
 
-func (r *postgresOrderRepository) GetAsks(symbol string, limit int) ([]entity.Order, error) {
+func (r *orderRepository) GetAsks(symbol string, limit int) ([]entity.Order, error) {
 	query := `SELECT id, broker_id, owner_doc, type, symbol, price,
 		quantity, remaining_quantity, valid_until, status, created_at
 	FROM orders 
-	WHERE symbol = $1 AND type = 'ASK' AND status IN ('PENDING', 'PARTIAL')
+	WHERE symbol = $1 AND type = 'ASK' AND status IN ('PENDING', 'PARTIAL') AND NOW() < valid_until
 	ORDER BY price ASC, created_at ASC
 	LIMIT $2
 	`
@@ -182,15 +178,16 @@ func (r *postgresOrderRepository) GetAsks(symbol string, limit int) ([]entity.Or
 	return rowsToOrders(rows)
 }
 
-func (r *postgresOrderRepository) GetAsksLT(qf dto.QueryFill) ([]entity.Order, error) {
+func (r *orderRepository) GetAsksLT(qf dto.QueryFill) ([]entity.Order, error) {
 	query := `SELECT id, broker_id, owner_doc, type, symbol, price,
 		quantity, remaining_quantity, valid_until, status, created_at
 	FROM orders 
-	WHERE symbol = $1 AND type = 'ASK' AND status IN ('PENDING', 'PARTIAL') AND ( price < $2 OR (price = $2 AND created_at <= $3) )
+	WHERE symbol = $1 AND type = 'ASK' AND ( price < $2 OR (price = $2 AND created_at <= $3) )
+		AND status IN ('PENDING', 'PARTIAL') AND id != $4
 	ORDER BY price ASC, created_at ASC
-	LIMIT $4
+	LIMIT $5
 	`
-	args := []interface{}{qf.Symbol, qf.Price, qf.CreatedAt, qf.Limit}
+	args := []interface{}{qf.Symbol, qf.Price, qf.CreatedAt, qf.ID, qf.Limit}
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {

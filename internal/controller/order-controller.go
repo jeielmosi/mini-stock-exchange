@@ -7,17 +7,22 @@ import (
 
 	match_service "mini-stock-exchange/internal/domain-service/match-service"
 	"mini-stock-exchange/internal/dto"
+	order_service "mini-stock-exchange/internal/service/order-service"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 )
 
 type orderController struct {
-	service match_service.MatchService
+	match match_service.MatchService
+	order order_service.OrderService
 }
 
-func NewOrderController(service match_service.MatchService) Controller {
-	return &orderController{service: service}
+func NewOrderController(match match_service.MatchService, order order_service.OrderService) Controller {
+	return &orderController{
+		match: match,
+		order: order,
+	}
 }
 
 func (h *orderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +43,7 @@ func (h *orderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto, err := h.service.SubmitOrder(r.Context(), req)
+	dto, err := h.match.SubmitOrder(r.Context(), req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -57,7 +62,7 @@ func (h *orderController) GetOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order, err := h.service.GetOrder(req)
+	order, err := h.order.GetOrder(req)
 	if err != nil {
 		http.Error(w, "order not found", http.StatusNotFound)
 		return

@@ -6,7 +6,6 @@ import (
 
 	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/observability"
-	"mini-stock-exchange/internal/repository"
 
 	"go.opentelemetry.io/otel"
 )
@@ -15,17 +14,14 @@ var tracer = otel.Tracer("match-service")
 
 type MatchService interface {
 	SubmitOrder(ctx context.Context, req dto.CreateOrderRequest) (dto.CreateOrderResponse, error)
-	GetOrder(req dto.GetOrderRequest) (dto.GetOrderResponse, error)
 }
 
 type matchService struct {
-	orderRepo    repository.OrderRepository
 	orchestrator Orchestrator
 }
 
-func NewMatchService(orderRepo repository.OrderRepository, orchestrator Orchestrator) MatchService {
+func NewMatchService(orchestrator Orchestrator) MatchService {
 	return &matchService{
-		orderRepo:    orderRepo,
 		orchestrator: orchestrator,
 	}
 }
@@ -48,12 +44,4 @@ func (s *matchService) SubmitOrder(ctx context.Context, req dto.CreateOrderReque
 	}
 
 	return dto.NewCreateOrderResponse(order.ID)
-}
-
-func (s *matchService) GetOrder(req dto.GetOrderRequest) (dto.GetOrderResponse, error) {
-	order, err := s.orderRepo.GetByID(req.ID)
-	if err != nil {
-		return dto.GetOrderResponse{}, err
-	}
-	return dto.NewGetOrderResponse(order)
 }

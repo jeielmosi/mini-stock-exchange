@@ -15,10 +15,12 @@ import (
 
 func TestOrderRepository(t *testing.T) {
 	ctx := context.Background()
-	db, cleanup := SetupTestDB(ctx)
+	db, cleanup, err := SetupTestDB(ctx)
+	assert.NoError(t, err)
 	defer cleanup()
 
-	repo := NewOrderRepository(db)
+	repo, err := NewOrderRepository(db)
+	assert.NoError(t, err)
 
 	t.Run("Create and GetByID", func(t *testing.T) {
 		order := &entity.Order{

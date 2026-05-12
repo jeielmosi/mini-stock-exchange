@@ -10,21 +10,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type Controller interface {
-	RegisterRoutes(r chi.Router)
-}
-
-type controller struct {
-	r chi.Router
-
-	orderController  Controller
-	tradeController  Controller
-	healthController Controller
-	metricController Controller
-}
-
-func NewController(r chi.Router, orderRepo repository.OrderRepository, tradeRepo repository.TradeRepository) Controller {
-	orchestrator := match_service.NewOrchestrator(orderRepo)
+func NewMockController(r chi.Router, orderRepo repository.OrderRepository, tradeRepo repository.TradeRepository) Controller {
+	orchestrator := match_service.NewMockOrchestrator(orderRepo)
 	orderService := order_service.NewOrderService(orderRepo)
 	tradeService := trade_service.NewTradeService(tradeRepo)
 	matchService := match_service.NewMatchService(orchestrator)
@@ -42,11 +29,4 @@ func NewController(r chi.Router, orderRepo repository.OrderRepository, tradeRepo
 		metricController: metricController,
 	}
 	return &ctrl
-}
-
-func (c *controller) RegisterRoutes(r chi.Router) {
-	c.orderController.RegisterRoutes(r)
-	c.tradeController.RegisterRoutes(r)
-	c.healthController.RegisterRoutes(r)
-	c.metricController.RegisterRoutes(r)
 }

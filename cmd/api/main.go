@@ -28,14 +28,28 @@ func main() {
 	}()
 
 	config.Load()
-	db, err := repository.NewDatabase()
+
+	db, err := repository.NewPostgres(nil)
 	if err != nil {
 		log.Fatalf("failed to connect to db: %v", err)
 	}
 	defer db.Close()
 
+	orderRepo, err := repository.NewOrderRepository(db)
+	if err != nil {
+		log.Fatalf("failed to create order repository: %v", err)
+	}
+	defer orderRepo.Stop()
+
+	tradeRepo, err := repository.NewTradeRepository(db)
+	if err != nil {
+		log.Fatalf("failed to create tarde repository: %v", err)
+	}
+	defer tradeRepo.Stop()
+
 	r := chi.NewRouter()
-	controller.RegisterRoutes(r, db)
+	ctrl := controller.NewController(r, orderRepo, tradeRepo)
+	ctrl.RegisterRoutes(r)
 
 	log.Println("Server starting on :8080...")
 	if err := http.ListenAndServe(":8080", r); err != nil {

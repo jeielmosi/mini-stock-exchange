@@ -1,6 +1,7 @@
 package order_heaps
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -15,10 +16,18 @@ import (
 
 func newAskHeap(symbol string, capacity int, orderRepo repository.OrderRepository) *AskHeap {
 	return &AskHeap{
-		heap:      newOrderHeap(capacity, lessOrder),
+		heap:      NewOrderHeap(capacity, lessOrder),
 		orderRepo: orderRepo,
 		symbol:    symbol,
 	}
+}
+
+func TestNewAskHeap(t *testing.T) {
+	symbol := "AAPL"
+	capacity := 10
+	var repo repository.OrderRepository
+	ah := NewAskHeap(symbol, capacity, repo)
+	assert.NotNil(t, ah)
 }
 
 func TestAskHeap(t *testing.T) {
@@ -26,8 +35,14 @@ func TestAskHeap(t *testing.T) {
 	now := time.Now().UTC()
 
 	t.Run("Success", func(t *testing.T) {
-		repo, cleanup := repository.NewMockOrderRepository()
+		ctx := context.Background()
+		db, cleanup, err := repository.SetupTestDB(ctx)
+		assert.NoError(t, err)
 		defer cleanup()
+
+		repo, err := repository.NewOrderRepository(db)
+		assert.NoError(t, err)
+		defer repo.Stop()
 		orders := []entity.Order{
 			{
 				ID:         uuid.New(),
@@ -83,36 +98,102 @@ func TestAskHeap(t *testing.T) {
 		assert.True(t, o3.Price.Equal(decimal.NewFromInt(150)))
 	})
 
-	t.Run("Pop Empty Repository", func(t *testing.T) {
-		repo, cleanup := repository.NewMockOrderRepository()
+	t.Run("Pop Fill from Repository", func(t *testing.T) {
+		ctx := context.Background()
+		db, cleanup, err := repository.SetupTestDB(ctx)
+		assert.NoError(t, err)
 		defer cleanup()
+		repo, err := repository.NewOrderRepository(db)
+		assert.NoError(t, err)
+		defer repo.Stop()
 
 		ah := newAskHeap(symbol, 10, repo)
-		_, err := ah.Pop(entity.Order{})
+
+		order := entity.Order{
+			ID:                uuid.New(),
+			BrokerID:          "broker1",
+			OwnerDoc:          "doc1",
+			Symbol:            symbol,
+			Type:              entity.Ask,
+			Price:             decimal.NewFromInt(100),
+			Quantity:          100,
+			RemainingQuantity: 100,
+			ValidUntil:        now.Add(24 * time.Hour),
+			Status:            entity.Pending,
+			CreatedAt:         now,
+		}
+		err = repo.Insert(order)
+		assert.NoError(t, err)
+
+		inserted, err := repo.GetByID(order.ID)
+		assert.NoError(t, err)
+		assert.True(t, inserted.ID == order.ID)
+
+		asks, err := repo.GetAsks(symbol, 10)
+		assert.NoError(t, err)
+		t.Logf("Asks from repo: %d", len(asks))
+
+		bidOrder := entity.Order{
+			ID:                uuid.New(),
+			Price:             decimal.NewFromInt(200),
+			Quantity:          100,
+			RemainingQuantity: 100,
+			OwnerDoc:          "doc2",
+		}
+		res, err := ah.Pop(bidOrder)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		t.Logf("Matches length: %d", len(res.Matches))
+		t.Log("Expired: ", res.Expired)
+		assert.True(t, len(res.Matches) > 0)
+		assert.True(t, res.Matches[0].ID == order.ID)
+	})
+
+	t.Run("Pop Empty Repository", func(t *testing.T) {
+
+		ctx := context.Background()
+		db, cleanup, err := repository.SetupTestDB(ctx)
+		assert.NoError(t, err)
+		defer cleanup()
+		repo, err := repository.NewOrderRepository(db)
+		assert.NoError(t, err)
+		defer repo.Stop()
+
+		ah := newAskHeap(symbol, 10, repo)
+		_, err = ah.Pop(entity.Order{})
 
 		assert.NoError(t, err)
 	})
 
 	t.Run("Push", func(t *testing.T) {
-		repo, cleanup := repository.NewMockOrderRepository()
+		ctx := context.Background()
+		db, cleanup, err := repository.SetupTestDB(ctx)
+		assert.NoError(t, err)
 		defer cleanup()
+		repo, err := repository.NewOrderRepository(db)
+		assert.NoError(t, err)
 		ah := newAskHeap(symbol, 5, repo)
-
 		order1 := entity.Order{
-			ID:         uuid.New(),
-			Symbol:     symbol,
-			Price:      decimal.NewFromInt(100),
-			CreatedAt:  now,
-			Type:       entity.Ask,
-			ValidUntil: now.Add(24 * time.Hour),
+			ID:                uuid.New(),
+			Symbol:            symbol,
+			Price:             decimal.NewFromInt(100),
+			CreatedAt:         now,
+			Type:              entity.Ask,
+			ValidUntil:        now.Add(24 * time.Hour),
+			Status:            entity.Pending,
+			Quantity:          100,
+			RemainingQuantity: 100,
 		}
 		order2 := entity.Order{
-			ID:         uuid.New(),
-			Symbol:     symbol,
-			Price:      decimal.NewFromInt(90),
-			CreatedAt:  now,
-			Type:       entity.Ask,
-			ValidUntil: now.Add(24 * time.Hour),
+			ID:                uuid.New(),
+			Symbol:            symbol,
+			Price:             decimal.NewFromInt(90),
+			CreatedAt:         now,
+			Type:              entity.Ask,
+			ValidUntil:        now.Add(24 * time.Hour),
+			Status:            entity.Pending,
+			Quantity:          100,
+			RemainingQuantity: 100,
 		}
 
 		ah.Push(order1)
@@ -123,24 +204,34 @@ func TestAskHeap(t *testing.T) {
 		assert.True(t, o.Price.Equal(decimal.NewFromInt(90)))
 	})
 	t.Run("Peek", func(t *testing.T) {
-		repo, cleanup := repository.NewMockOrderRepository()
+		ctx := context.Background()
+		db, cleanup, err := repository.SetupTestDB(ctx)
+		assert.NoError(t, err)
 		defer cleanup()
+		repo, err := repository.NewOrderRepository(db)
+		assert.NoError(t, err)
 		ah := newAskHeap(symbol, 5, repo)
 		order1 := entity.Order{
-			ID:         uuid.New(),
-			Symbol:     symbol,
-			Price:      decimal.NewFromInt(100),
-			CreatedAt:  now,
-			Type:       entity.Ask,
-			ValidUntil: now.Add(24 * time.Hour),
+			ID:                uuid.New(),
+			Symbol:            symbol,
+			Price:             decimal.NewFromInt(100),
+			CreatedAt:         now,
+			Type:              entity.Ask,
+			ValidUntil:        now.Add(24 * time.Hour),
+			Status:            entity.Pending,
+			Quantity:          100,
+			RemainingQuantity: 100,
 		}
 		order2 := entity.Order{
-			ID:         uuid.New(),
-			Symbol:     symbol,
-			Price:      decimal.NewFromInt(90),
-			CreatedAt:  now,
-			Type:       entity.Ask,
-			ValidUntil: now.Add(24 * time.Hour),
+			ID:                uuid.New(),
+			Symbol:            symbol,
+			Price:             decimal.NewFromInt(90),
+			CreatedAt:         now,
+			Type:              entity.Ask,
+			ValidUntil:        now.Add(24 * time.Hour),
+			Status:            entity.Pending,
+			Quantity:          100,
+			RemainingQuantity: 100,
 		}
 
 		ah.Push(order1)
@@ -149,5 +240,113 @@ func TestAskHeap(t *testing.T) {
 		o, ok := ah.heap.Peek()
 		assert.True(t, ok)
 		assert.True(t, o.Price.Equal(decimal.NewFromInt(90)))
+	})
+
+	t.Run("Push Full Heap and Trigger Fill", func(t *testing.T) {
+		ctx := context.Background()
+		db, cleanup, err := repository.SetupTestDB(ctx)
+		assert.NoError(t, err)
+		defer cleanup()
+		repo, err := repository.NewOrderRepository(db)
+		assert.NoError(t, err)
+		defer repo.Stop()
+
+		ah := newAskHeap(symbol, 2, repo)
+
+		// Order in repo that should be picked up by fill
+		o0 := entity.Order{
+			ID:                uuid.New(),
+			BrokerID:          "broker0",
+			OwnerDoc:          "doc0",
+			Symbol:            symbol,
+			Price:             decimal.NewFromInt(5),
+			CreatedAt:         now,
+			Type:              entity.Ask,
+			ValidUntil:        now.Add(24 * time.Hour),
+			Status:            entity.Pending,
+			Quantity:          100,
+			RemainingQuantity: 100,
+		}
+		ah.Push(o0)
+		assert.True(t, ah.heap.Len() == 1)
+		err = repo.Insert(o0)
+		assert.NoError(t, err)
+
+		o1 := entity.Order{
+			ID:                uuid.New(),
+			BrokerID:          "broker1",
+			OwnerDoc:          "doc1",
+			Symbol:            symbol,
+			Price:             decimal.NewFromInt(10),
+			CreatedAt:         now,
+			Type:              entity.Ask,
+			ValidUntil:        now.Add(24 * time.Hour),
+			Status:            entity.Pending,
+			Quantity:          100,
+			RemainingQuantity: 100,
+		}
+		ah.Push(o1) // Heap: [5, 10]
+		assert.True(t, ah.heap.Len() == 2)
+		err = repo.Insert(o1)
+		assert.NoError(t, err)
+
+		o2 := entity.Order{
+			ID:                uuid.New(),
+			BrokerID:          "broker2",
+			OwnerDoc:          "doc2",
+			Symbol:            symbol,
+			Price:             decimal.NewFromInt(20),
+			CreatedAt:         now,
+			Type:              entity.Ask,
+			ValidUntil:        now.Add(24 * time.Hour),
+			Status:            entity.Pending,
+			Quantity:          100,
+			RemainingQuantity: 100,
+		}
+		ah.Push(o2) // Heap full
+		err = repo.Insert(o2)
+		assert.NoError(t, err)
+
+		// Pop should trigger fill because qt(10) < top(20)
+		match := entity.Order{
+			ID:                uuid.New(),
+			Symbol:            symbol,
+			Price:             decimal.NewFromInt(200),
+			Quantity:          100,
+			RemainingQuantity: 100,
+			Type:              entity.Bid,
+			OwnerDoc:          "match",
+			BrokerID:          "match",
+		}
+
+		res, err := ah.Pop(match)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		// The fill should have pushed repoOrder(5) into the heap
+		// Heap was [20], now it's [5, 20].
+		// Pop returns 5.
+		assert.True(t, len(res.Matches) == 1)
+		err = repo.Expire([]uuid.UUID{res.Matches[0].ID})
+		assert.NoError(t, err)
+		t.Log(res.Matches[0].ID == o0.ID, "match: ", res.Matches[0].OwnerDoc, "order: ", o0.OwnerDoc)
+		assert.True(t, res.Matches[0].ID == o0.ID)
+
+		res, err = ah.Pop(match)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		assert.True(t, len(res.Matches) == 1)
+		err = repo.Expire([]uuid.UUID{res.Matches[0].ID})
+		assert.NoError(t, err)
+		t.Log(res.Matches[0].ID == o1.ID, "match: ", res.Matches[0].OwnerDoc, "order: ", o1.OwnerDoc)
+		assert.True(t, res.Matches[0].ID == o1.ID)
+
+		res, err = ah.Pop(match)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		assert.True(t, len(res.Matches) == 1)
+		err = repo.Expire([]uuid.UUID{res.Matches[0].ID})
+		assert.NoError(t, err)
+		assert.True(t, res.Matches[0].ID == o2.ID)
+		t.Log(res.Matches[0].ID == o2.ID, "match: ", res.Matches[0].OwnerDoc, "order: ", o2.OwnerDoc)
 	})
 }

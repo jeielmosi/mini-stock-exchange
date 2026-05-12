@@ -8,10 +8,12 @@ import (
 	"mini-stock-exchange/internal/config"
 	"mini-stock-exchange/internal/entity"
 	"mini-stock-exchange/internal/repository"
+	"mini-stock-exchange/internal/usecase"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func mustUUID() uuid.UUID {
@@ -27,12 +29,17 @@ func configEnv(capacity int) {
 }
 
 func newExecutor(symbol string, orderRepo repository.OrderRepository) Executor {
-	return NewExecutor(symbol, orderRepo)
+	return NewExecutor(symbol, orderRepo, usecase.NewOrderMatchUsecase(), usecase.NewCreateTradeUsecase())
 }
 
 func TestSymbolExecutor_ProcessOrder(t *testing.T) {
-	orderRepo, cleanup := repository.NewMockOrderRepository()
+	ctx := context.Background()
+	db, cleanup, err := repository.SetupTestDB(ctx)
+	assert.NoError(t, err)
 	defer cleanup()
+	orderRepo, err := repository.NewOrderRepository(db)
+	require.NoError(t, err)
+	defer orderRepo.Stop()
 
 	configEnv(10)
 	executor := newExecutor("AAPL", orderRepo)
@@ -48,7 +55,7 @@ func TestSymbolExecutor_ProcessOrder(t *testing.T) {
 		Status:            entity.Pending,
 	}
 
-	err := executor.ProcessOrder(context.Background(), order)
+	err = executor.ProcessOrder(context.Background(), order)
 	if err != nil {
 		t.Log(err.Error())
 	}
@@ -56,8 +63,13 @@ func TestSymbolExecutor_ProcessOrder(t *testing.T) {
 }
 
 func TestSymbolExecutor_MatchMaking(t *testing.T) {
-	orderRepo, cleanup := repository.NewMockOrderRepository()
+	ctx := context.Background()
+	db, cleanup, err := repository.SetupTestDB(ctx)
+	assert.NoError(t, err)
 	defer cleanup()
+	orderRepo, err := repository.NewOrderRepository(db)
+	assert.NoError(t, err)
+	defer orderRepo.Stop()
 
 	configEnv(10)
 	executor := newExecutor("AAPL", orderRepo)
@@ -92,7 +104,7 @@ func TestSymbolExecutor_MatchMaking(t *testing.T) {
 		OwnerDoc:          "broker2",
 	}
 
-	err := executor.ProcessOrder(context.Background(), *bid)
+	err = executor.ProcessOrder(context.Background(), *bid)
 	if err != nil {
 		t.Log(err.Error())
 	}
