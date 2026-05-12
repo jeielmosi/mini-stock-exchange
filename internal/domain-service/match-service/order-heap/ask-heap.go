@@ -63,7 +63,11 @@ func (a *AskHeap) Pop(order entity.Order) (*MatchDTO, error) {
 	remaining := order.RemainingQuantity
 	var retry []entity.Order
 	var dto MatchDTO
-	var err error
+	err := a.Init()
+	if err != nil {
+		return nil, err
+	}
+
 	for true {
 		if remaining <= 0 {
 			break
@@ -108,19 +112,23 @@ func (a *AskHeap) DropBack() {
 	}
 }
 
-func (a *AskHeap) Fill() error {
-	top, ok := a.heap.Peek()
-	if !ok {
-		orders, err := a.orderRepo.GetAsks(a.symbol, a.heap.Cap())
-		if err != nil {
-			return err
-		}
-		for _, o := range orders {
-			a.heap.Push(o)
-		}
+func (a *AskHeap) Init() error {
+	if a.heap.Len() != 0 {
 		return nil
 	}
-	if a.qt == nil {
+	orders, err := a.orderRepo.GetAsks(a.symbol, a.heap.Cap())
+	if err != nil {
+		return err
+	}
+	for _, o := range orders {
+		a.heap.Push(o)
+	}
+	return nil
+}
+
+func (a *AskHeap) Fill() error {
+	top, ok := a.heap.Peek()
+	if !ok || a.qt == nil {
 		return nil
 	}
 	if lessQt(a.qt, NewQueryTrigger(top)) {

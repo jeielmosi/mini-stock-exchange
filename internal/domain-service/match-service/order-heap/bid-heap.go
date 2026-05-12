@@ -23,10 +23,10 @@ func greaterQt(lhs *QueryTrigger, rhs *QueryTrigger) bool {
 
 func greaterOrder(lhs *entity.Order, rhs *entity.Order) bool {
 	if lhs == nil {
-		return false
+		return true
 	}
 	if rhs == nil {
-		return true
+		return false
 	}
 
 	return greaterQt(NewQueryTrigger(*lhs), NewQueryTrigger(*rhs))
@@ -63,7 +63,11 @@ func (b *BidHeap) Pop(order entity.Order) (*MatchDTO, error) {
 	remaining := order.RemainingQuantity
 	var retry []entity.Order
 	var dto MatchDTO
-	var err error
+	err := b.Init()
+	if err != nil {
+		return nil, err
+	}
+
 	for true {
 		if remaining <= 0 {
 			break
@@ -108,19 +112,23 @@ func (b *BidHeap) DropBack() {
 	}
 }
 
-func (b *BidHeap) Fill() error {
-	top, ok := b.heap.Peek()
-	if !ok {
-		orders, err := b.orderRepo.GetBids(b.symbol, b.heap.Cap())
-		if err != nil {
-			return err
-		}
-		for _, o := range orders {
-			b.heap.Push(o)
-		}
+func (b *BidHeap) Init() error {
+	if b.heap.Len() != 0 {
 		return nil
 	}
-	if b.qt == nil {
+	orders, err := b.orderRepo.GetBids(b.symbol, b.heap.Cap())
+	if err != nil {
+		return err
+	}
+	for _, o := range orders {
+		b.heap.Push(o)
+	}
+	return nil
+}
+
+func (b *BidHeap) Fill() error {
+	top, ok := b.heap.Peek()
+	if !ok || b.qt == nil {
 		return nil
 	}
 	if greaterQt(b.qt, NewQueryTrigger(top)) {

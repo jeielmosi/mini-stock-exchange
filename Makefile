@@ -12,5 +12,8 @@ down:
 migrate:
 	docker compose run --rm migration
 
-script: build
-	python3 ./scripts/test_order.py
+test: build
+	python3 ./scripts/test.py
+
+clean:
+	python3 ./scripts/erase_db.py

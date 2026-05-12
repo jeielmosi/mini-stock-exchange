@@ -8,7 +8,7 @@ import (
 
 type OrderMatchUsecase interface {
 	MatchOrder(bid *entity.Order, ask *entity.Order) (dto.OrderMatch, error)
-	UnmatchOrder(dto dto.OrderMatch) error
+	UnmatchOrder(dto dto.OrderMatch)
 }
 
 type orderMatchUsecase struct{}
@@ -30,6 +30,9 @@ func (u *orderMatchUsecase) MatchOrder(bid *entity.Order, ask *entity.Order) (dt
 		return dto.OrderMatch{}, fmt.Errorf("could not match orders, needed ask and bid")
 	}
 	tradeQty := min(bid.RemainingQuantity, ask.RemainingQuantity)
+	if tradeQty == 0 {
+		return dto.OrderMatch{}, fmt.Errorf("no quantity to trade")
+	}
 
 	bid.RemainingQuantity -= tradeQty
 	if bid.RemainingQuantity == 0 {
@@ -48,7 +51,7 @@ func (u *orderMatchUsecase) MatchOrder(bid *entity.Order, ask *entity.Order) (dt
 	return dto.NewOrderMatch(ask, bid, tradeQty, ask.Price), nil
 }
 
-func (u *orderMatchUsecase) UnmatchOrder(match dto.OrderMatch) error {
+func (u *orderMatchUsecase) UnmatchOrder(match dto.OrderMatch) {
 	match.Bid.RemainingQuantity += match.Quantity
 	if match.Bid.RemainingQuantity == match.Bid.Quantity {
 		match.Bid.Status = entity.Pending
@@ -62,6 +65,4 @@ func (u *orderMatchUsecase) UnmatchOrder(match dto.OrderMatch) error {
 	} else {
 		match.Ask.Status = entity.Partial
 	}
-
-	return nil
 }

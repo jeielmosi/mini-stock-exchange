@@ -56,6 +56,5 @@ func (o *orchestrator) RouteOrder(ctx context.Context, order entity.Order) error
 		}
 		o.mu.Unlock()
 	}
-
 	return executor.ProcessOrder(ctx, order)
 }

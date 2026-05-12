@@ -28,7 +28,7 @@ func NewOrderController(match match_service.MatchService, order order_service.Or
 func (h *orderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	req, err := dto.NewCreateOrderRequest(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		sendError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	validate := validator.New()
@@ -39,13 +39,13 @@ func (h *orderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
 			msg += fmt.Sprintf("%s,", e.Field())
 		}
 		msg = msg[:len(msg)-1] + "]"
-		http.Error(w, msg, http.StatusBadRequest)
+		sendError(w, msg, http.StatusBadRequest)
 		return
 	}
 
 	dto, err := h.match.SubmitOrder(r.Context(), req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -58,13 +58,13 @@ func (h *orderController) GetOrder(w http.ResponseWriter, r *http.Request) {
 
 	req, err := dto.NewGetOrderRequest(id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		sendError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	order, err := h.order.GetOrder(req)
 	if err != nil {
-		http.Error(w, "order not found", http.StatusNotFound)
+		sendError(w, "order not found", http.StatusNotFound)
 		return
 	}
 

@@ -8,3 +8,4 @@ kilo.jsonc
 .volume/
 
 hoppscotch-personal-collections.json
+scripts/**/__pycache__/

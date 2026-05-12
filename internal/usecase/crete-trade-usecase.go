@@ -6,16 +6,13 @@ import (
 	"mini-stock-exchange/internal/entity"
 
 	"github.com/google/uuid"
-	//"mini-stock-exchange/internal/repository"
 )
 
 type CreateTradeUsecase interface {
 	CreateTrade(dto dto.OrderMatch) (entity.Trade, error)
 }
 
-type createTradeUsecase struct {
-	//trade repo
-}
+type createTradeUsecase struct{}
 
 func NewCreateTradeUsecase() CreateTradeUsecase {
 	return &createTradeUsecase{}

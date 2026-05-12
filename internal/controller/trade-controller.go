@@ -25,13 +25,13 @@ func (h *tradeController) GetTrade(w http.ResponseWriter, r *http.Request) {
 
 	req, err := dto.NewGetTradeRequest(id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		sendError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	trade, err := h.service.GetTrade(req)
 	if err != nil {
-		http.Error(w, "trade not found", http.StatusNotFound)
+		sendError(w, "trade not found", http.StatusNotFound)
 		return
 	}
 

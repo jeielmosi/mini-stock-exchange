@@ -23,6 +23,7 @@ func NewOrderService(orderRepo repository.OrderRepository, tradeRepo repository.
 	}
 }
 
+// TODO update if invalid
 func (o *orderService) GetOrder(req dto.GetOrderRequest) (dto.GetOrderResponse, error) {
 	order, err := o.orderRepo.GetByID(req.ID)
 	if err != nil {

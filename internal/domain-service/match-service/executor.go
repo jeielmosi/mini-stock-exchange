@@ -108,28 +108,34 @@ func (e *executor) matchMake(order entity.Order) {
 		return
 	}
 
-	dto, err := matchHeap.Pop(order)
-	if err != nil {
-		slog.Error("failed to pop order from heap", "error", err, "order_id", order.ID)
-		if dto == nil {
-			return
-		}
-	}
-
-	if err := e.orderRepo.Expire(dto.Expired); err != nil {
-		slog.Error("failed to update expired order", "error", err)
-	}
-
-	for m, match := range dto.Matches {
-		if err := e.match(&order, &match); err != nil {
-			slog.Error("failed to match order", "error", err, "order_id", order.ID, "match_id", match.ID)
-			for p := m; p < len(dto.Matches); p++ {
-				matchHeap.Push(dto.Matches[p])
+	for 0 < order.RemainingQuantity {
+		dto, err := matchHeap.Pop(order)
+		if err != nil {
+			slog.Error("failed to pop order from heap", "error", err, "order_id", order.ID)
+			if dto == nil {
+				return
 			}
+		}
+
+		if err := e.orderRepo.Expire(dto.Expired); err != nil {
+			slog.Error("failed to update expired order", "error", err)
+		}
+
+		if len(dto.Matches) == 0 {
 			break
 		}
-		if 0 < match.RemainingQuantity {
-			matchHeap.Push(match)
+
+		for m, match := range dto.Matches {
+			if err := e.match(&order, &match); err != nil {
+				slog.Error("failed to match order", "error", err, "order_id", order.ID, "match_id", match.ID)
+				for p := m; p < len(dto.Matches); p++ {
+					matchHeap.Push(dto.Matches[p])
+				}
+				break
+			}
+			if 0 < match.RemainingQuantity {
+				matchHeap.Push(match)
+			}
 		}
 	}
 

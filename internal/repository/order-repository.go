@@ -63,7 +63,6 @@ func (r *orderRepository) GetByID(id uuid.UUID) (entity.Order, error) {
 }
 
 func (r *orderRepository) Match(ctx context.Context, match MatchDTO) error {
-
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
