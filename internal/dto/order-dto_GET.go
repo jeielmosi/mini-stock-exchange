@@ -27,16 +27,16 @@ func NewGetOrderRequest(id64 string) (GetOrderRequest, error) {
 }
 
 type GetOrderResponse struct {
-	ID              string   `json:"id" validate:"required"`
-	Type            string   `json:"type" validate:"required"`
-	Symbol          string   `json:"symbol" validate:"required"`
-	Price           float64  `json:"price" validate:"required"`
-	Quantity        int      `json:"quantity" validate:"required"`
+	ID              string   `json:"id,omitempty"`
+	Type            string   `json:"type,omitempty"`
+	Symbol          string   `json:"symbol,omitempty"`
+	Price           float64  `json:"price,omitempty"`
+	Quantity        int      `json:"quantity,omitempty"`
 	PendingQuantity int      `json:"pending_quantity,omitempty"`
 	FilledQuantity  int      `json:"filled_quantity,omitempty"`
-	Status          string   `json:"status" validate:"required"`
-	CreatedAt       string   `json:"created_at" validate:"required"`
-	ValidUntil      string   `json:"valid_until" validate:"required"`
+	Status          string   `json:"status,omitempty"`
+	CreatedAt       string   `json:"created_at,omitempty"`
+	ValidUntil      string   `json:"valid_until,omitempty"`
 	Trades          []string `json:"trades,omitempty"`
 }
 

@@ -1,2 +1,9 @@
 .volume
 .git
+
+*.md
+
+kilo.jsonc
+.kilo/*
+.volume/*
+hoppscotch-personal-collections.json

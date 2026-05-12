@@ -62,7 +62,7 @@ func NewCreateOrderRequest(body io.ReadCloser) (CreateOrderRequest, error) {
 }
 
 type CreateOrderResponse struct {
-	ID string `json:"id"`
+	ID string `json:"id,omitempty"`
 }
 
 func NewCreateOrderResponse(id uuid.UUID) (CreateOrderResponse, error) {

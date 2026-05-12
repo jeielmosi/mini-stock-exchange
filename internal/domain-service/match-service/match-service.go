@@ -29,7 +29,6 @@ func NewMatchService(orchestrator Orchestrator, orderService order_service.Order
 	}
 }
 
-// TODO should recieve dto and not order
 func (s *matchService) SubmitOrder(ctx context.Context, req dto.CreateOrderRequest) (dto.CreateOrderResponse, error) {
 	ctx, span := tracer.Start(ctx, "SubmitOrder")
 	defer span.End()

@@ -6,7 +6,6 @@ import (
 	"mini-stock-exchange/internal/repository"
 )
 
-// TODO get the order by ID, with trades
 type OrderService interface {
 	GetOrder(req dto.GetOrderRequest) (dto.GetOrderResponse, error)
 	PostOrder(order entity.Order) error
