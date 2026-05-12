@@ -1,9 +1,10 @@
 *.md
+!README.md
+
 go.sum
 kilo.jsonc
 .kilo/*
-.volume/*
-hoppscotch-personal-collections.json
 
-!*/
-!*/README.md
+.volume/
+
+hoppscotch-personal-collections.json

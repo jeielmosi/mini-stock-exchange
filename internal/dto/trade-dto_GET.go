@@ -27,12 +27,12 @@ func NewGetTradeRequest(id64 string) (GetTradeRequest, error) {
 }
 
 type GetTradeResponse struct {
-	ID       string  `json:"id" validate:"required"`
-	Symbol   string  `json:"symbol" validate:"required"`
-	Price    float64 `json:"price" validate:"required"`
-	Quantity int     `json:"quantity" validate:"required"`
-	AskID    string  `json:"ask_id" validate:"required"`
-	BidID    string  `json:"bid_id" validate:"required"`
+	ID       string  `json:"id,omitempty"`
+	Symbol   string  `json:"symbol,omitempty"`
+	Price    float64 `json:"price,omitempty"`
+	Quantity int     `json:"quantity,omitempty"`
+	AskID    string  `json:"ask_id,omitempty"`
+	BidID    string  `json:"bid_id,omitempty"`
 }
 
 func NewGetTradeResponse(trade entity.Trade) (GetTradeResponse, error) {
