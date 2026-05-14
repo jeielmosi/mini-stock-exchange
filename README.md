@@ -31,7 +31,6 @@ This application implements a stock exchange matching engine that:
 - `GET /orders/{id}` - Get order status and details
 
 ### Trade Information
-- `GET /trades` - List executed trades
 - `GET /trades/{id}` - Get specific trade details
 
 ## Getting Started
@@ -53,7 +52,7 @@ The API will be available at `http://localhost:8080`
 
 ```bash
 # Install dependencies
-go mod download
+go mod tidy
 
 # Run the application
 go run ./cmd/api/main.go
@@ -90,7 +89,7 @@ go run ./cmd/api/main.go
 Run the test suite:
 
 ```bash
-go test ./...
+make test
 ```
 
 Specific test categories:
