@@ -7,6 +7,12 @@ kilo.jsonc
 .kilo/*
 
 .volume/
+!.volume/grafana/datasources.yml
+!.volume/prometheus/prometheus.yml
+!.volume/promtail/promtail-config.yml
+!.volume/tempo/tempo.yml
+
+
 
 hoppscotch-personal-collections.json
 scripts/**/__pycache__/
