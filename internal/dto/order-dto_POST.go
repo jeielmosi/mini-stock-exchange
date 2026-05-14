@@ -8,9 +8,10 @@ import (
 	dto_helper "mini-stock-exchange/internal/dto/helper"
 	"mini-stock-exchange/internal/entity"
 
+	"math/big"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	"math/big"
 )
 
 type CreateOrderRequest struct {
@@ -18,8 +19,8 @@ type CreateOrderRequest struct {
 	OwnerDoc   string           `json:"owner_doc" validate:"required"`
 	Type       entity.OrderType `json:"type" validate:"required"`
 	Symbol     string           `json:"symbol" validate:"required"`
-	Price      float64          `json:"price" validate:"required"`
-	Quantity   int              `json:"quantity" validate:"required"`
+	Price      float64          `json:"price" validate:"required,gt=0"`
+	Quantity   int              `json:"quantity" validate:"required,gt=0"`
 	ValidUntil string           `json:"valid_until" validate:"required"`
 }
 

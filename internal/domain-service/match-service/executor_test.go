@@ -10,8 +10,9 @@ import (
 	"mini-stock-exchange/internal/repository"
 	"mini-stock-exchange/internal/usecase"
 
-	"github.com/google/uuid"
 	"math/big"
+
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -123,6 +124,7 @@ func TestSymbolExecutor_MatchMaking(t *testing.T) {
 		Type:              entity.Bid,
 		OwnerDoc:          "broker2",
 		BrokerID:          b2,
+		ValidUntil:        time.Now().Add(time.Hour),
 	}
 
 	err = orderRepo.Insert(*bid)

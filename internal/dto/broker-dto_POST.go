@@ -46,8 +46,7 @@ func NewCreateBrokerRequest(body io.ReadCloser) (CreateBrokerRequest, error) {
 }
 
 type CreateBrokerResponse struct {
-	ID   string `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
+	ID string `json:"id,omitempty"`
 }
 
 func NewCreateBrokerResponse(broker entity.Broker) (CreateBrokerResponse, error) {
@@ -56,7 +55,6 @@ func NewCreateBrokerResponse(broker entity.Broker) (CreateBrokerResponse, error)
 		return CreateBrokerResponse{}, err
 	}
 	return CreateBrokerResponse{
-		ID:   id,
-		Name: broker.Name,
+		ID: id,
 	}, nil
 }

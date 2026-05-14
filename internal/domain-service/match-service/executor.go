@@ -110,7 +110,6 @@ func (e *executor) matchMake(order *entity.Order) {
 		return
 	}
 
-	now := time.Now()
 	retryArr := []*entity.Order{}
 	expiredArr := []uuid.UUID{}
 
@@ -121,7 +120,8 @@ func (e *executor) matchMake(order *entity.Order) {
 			var orders []entity.Order
 			if order.Type == entity.Bid {
 				orders, err = e.orderRepo.GetAsks(e.symbol, e.askHeap.Cap())
-			} else {
+			}
+			if order.Type == entity.Ask {
 				orders, err = e.orderRepo.GetBids(e.symbol, e.bidHeap.Cap())
 			}
 			if err != nil {
@@ -137,15 +137,19 @@ func (e *executor) matchMake(order *entity.Order) {
 			continue
 		}
 
-		if order.OwnerDoc == match.OwnerDoc {
-			retryArr = append(retryArr, match)
-			matchHeap.Drop()
-			continue
+		dto, err := e.matchUsecase.ValidateMatch(order, match)
+		if err != nil {
+			slog.Error("failed to validate match", "error", err)
+			break
 		}
-
-		if match.ValidUntil.Before(now) {
-			expiredArr = append(expiredArr, match.ID)
-			matchHeap.Drop()
+		matchHeap.Drop()
+		if dto.Retry != nil {
+			retryArr = append(retryArr, dto.Retry)
+		}
+		if dto.Expired != nil {
+			expiredArr = append(expiredArr, dto.Expired.ID)
+		}
+		if dto.Ask == nil || dto.Bid == nil {
 			continue
 		}
 
@@ -153,7 +157,6 @@ func (e *executor) matchMake(order *entity.Order) {
 			slog.Error("failed to match order", "error", err, "order_id", order.ID, "match_id", match.ID)
 			break
 		}
-		matchHeap.Drop()
 		if 0 < match.RemainingQuantity {
 			matchHeap.Push(match)
 			break
@@ -174,16 +177,15 @@ func (e *executor) match(order *entity.Order, match *entity.Order) error {
 	if err != nil {
 		return fmt.Errorf("failed to match order: %w", err)
 	}
-	trade, err := e.createTrade.CreateTrade(dto)
-	defer func() {
-		if err != nil {
-			e.matchUsecase.UnmatchOrder(dto)
-		}
-	}()
-
+	trade, err := e.createTrade.CreateTrade(*dto)
 	if err != nil {
 		return fmt.Errorf("failed to create trade: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			e.matchUsecase.UnmatchOrder(*dto)
+		}
+	}()
 
 	err = e.orderRepo.Match(e.ctx, repository.MatchDTO{
 		Ask:   *dto.Ask,
