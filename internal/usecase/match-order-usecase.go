@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/entity"
+	"time"
 )
 
 type OrderMatchUsecase interface {
-	MatchOrder(bid *entity.Order, ask *entity.Order) (dto.OrderMatch, error)
+	CouldMatch(order1 *entity.Order, order2 *entity.Order) bool
+	MatchOrder(order1 *entity.Order, order2 *entity.Order) (dto.OrderMatch, error)
 	UnmatchOrder(dto dto.OrderMatch)
 }
 
@@ -17,22 +19,48 @@ func NewOrderMatchUsecase() OrderMatchUsecase {
 	return &orderMatchUsecase{}
 }
 
-func (u *orderMatchUsecase) MatchOrder(bid *entity.Order, ask *entity.Order) (dto.OrderMatch, error) {
-	if (ask == nil) || (bid == nil) {
-		return dto.OrderMatch{}, fmt.Errorf("nil pointers")
+func (u *orderMatchUsecase) CouldMatch(o1 *entity.Order, o2 *entity.Order) bool {
+	if (o1 == nil) || (o2 == nil) {
+		return false
+	}
+	if o1.OwnerDoc == o2.OwnerDoc {
+		return false
 	}
 
-	if (ask.Type == entity.Bid) && (bid.Type == entity.Ask) {
-		return dto.OrderMatch{}, fmt.Errorf("can not match orders")
+	now := time.Now()
+	if o1.ValidUntil.Before(now) || o2.ValidUntil.Before(now) {
+		return false
+	}
+
+	ask, bid := o1, o2
+	if ask.Type == entity.Bid && bid.Type == entity.Ask {
+		ask, bid = bid, ask
+	}
+	if ask.Type != entity.Ask || bid.Type != entity.Bid {
+		return false
 	}
 
 	if ask.Type != entity.Ask || bid.Type != entity.Bid {
-		return dto.OrderMatch{}, fmt.Errorf("could not match orders, needed ask and bid")
+		return false
 	}
-	tradeQty := min(bid.RemainingQuantity, ask.RemainingQuantity)
-	if tradeQty == 0 {
-		return dto.OrderMatch{}, fmt.Errorf("no quantity to trade")
+
+	if bid.Price.LessThan(ask.Price) {
+		return false
 	}
+	return true
+}
+
+func (u *orderMatchUsecase) MatchOrder(o1 *entity.Order, o2 *entity.Order) (dto.OrderMatch, error) {
+	if !u.CouldMatch(o1, o2) {
+		return dto.OrderMatch{}, fmt.Errorf("could not match orders")
+	}
+
+	ask, bid := o1, o2
+	if ask.Type == entity.Bid && bid.Type == entity.Ask {
+		ask, bid = bid, ask
+	}
+
+	tradeQty := min(ask.Quantity, bid.Quantity)
 
 	bid.RemainingQuantity -= tradeQty
 	if bid.RemainingQuantity == 0 {

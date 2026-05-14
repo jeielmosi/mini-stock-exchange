@@ -35,8 +35,6 @@ type GetOrderResponse struct {
 	PendingQuantity int      `json:"pending_quantity,omitempty"`
 	FilledQuantity  int      `json:"filled_quantity,omitempty"`
 	Status          string   `json:"status,omitempty"`
-	CreatedAt       string   `json:"created_at,omitempty"`
-	ValidUntil      string   `json:"valid_until,omitempty"`
 	Trades          []string `json:"trades,omitempty"`
 	BrokerName      string   `json:"broker,omitempty"`
 }

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log/slog"
 
-	"mini-stock-exchange/internal/dto"
 	"mini-stock-exchange/internal/entity"
 
 	"github.com/google/uuid"
@@ -26,9 +25,7 @@ type OrderRepository interface {
 	Match(ctx context.Context, match MatchDTO) error
 	Expire(ids []uuid.UUID) error
 	GetBids(symbol string, limit int) ([]entity.Order, error)
-	GetBidsGT(dto dto.QueryFill) ([]entity.Order, error)
 	GetAsks(symbol string, limit int) ([]entity.Order, error)
-	GetAsksLT(dto dto.QueryFill) ([]entity.Order, error)
 }
 
 type orderRepository struct {
@@ -141,26 +138,6 @@ func (r *orderRepository) GetBids(symbol string, limit int) ([]entity.Order, err
 	return rowsToOrders(rows)
 }
 
-func (r *orderRepository) GetBidsGT(qf dto.QueryFill) ([]entity.Order, error) {
-	query := `SELECT id, broker_id, owner_doc, type, symbol, price,
-		quantity, remaining_quantity, valid_until, status, created_at
-	FROM orders 
-	WHERE symbol = $1 AND type = 'BID' AND ( $2 < price OR (price = $2 AND created_at <= $3) )
-		AND status IN ('PENDING', 'PARTIAL') AND id != $4
-	ORDER BY price DESC, created_at ASC
-	LIMIT $5
-	`
-	args := []interface{}{qf.Symbol, qf.Price, qf.CreatedAt, qf.ID, qf.Limit}
-
-	rows, err := r.db.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	return rowsToOrders(rows)
-}
-
 func (r *orderRepository) GetAsks(symbol string, limit int) ([]entity.Order, error) {
 	query := `SELECT id, broker_id, owner_doc, type, symbol, price,
 		quantity, remaining_quantity, valid_until, status, created_at
@@ -170,26 +147,6 @@ func (r *orderRepository) GetAsks(symbol string, limit int) ([]entity.Order, err
 	LIMIT $2
 	`
 	args := []interface{}{symbol, limit}
-
-	rows, err := r.db.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	return rowsToOrders(rows)
-}
-
-func (r *orderRepository) GetAsksLT(qf dto.QueryFill) ([]entity.Order, error) {
-	query := `SELECT id, broker_id, owner_doc, type, symbol, price,
-		quantity, remaining_quantity, valid_until, status, created_at
-	FROM orders 
-	WHERE symbol = $1 AND type = 'ASK' AND ( price < $2 OR (price = $2 AND created_at <= $3) )
-		AND status IN ('PENDING', 'PARTIAL') AND id != $4
-	ORDER BY price ASC, created_at ASC
-	LIMIT $5
-	`
-	args := []interface{}{qf.Symbol, qf.Price, qf.CreatedAt, qf.ID, qf.Limit}
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {

@@ -64,7 +64,7 @@ func TestSymbolExecutor_ProcessOrder(t *testing.T) {
 	// Insert must happen before ProcessOrder for FK constraints
 	err = orderRepo.Insert(order)
 	require.NoError(t, err)
-	err = executor.ProcessOrder(context.Background(), order)
+	err = executor.ProcessOrder(context.Background(), &order)
 	if err != nil {
 		t.Log(err.Error())
 	}
@@ -107,7 +107,7 @@ func TestSymbolExecutor_MatchMaking(t *testing.T) {
 	}
 	err = orderRepo.Insert(*ask)
 	require.NoError(t, err)
-	executor.ProcessOrder(context.Background(), *ask)
+	executor.ProcessOrder(context.Background(), ask)
 
 	// Small sleep to ensure the order is processed by the goroutine
 	time.Sleep(100 * time.Millisecond)
@@ -127,7 +127,7 @@ func TestSymbolExecutor_MatchMaking(t *testing.T) {
 
 	err = orderRepo.Insert(*bid)
 	require.NoError(t, err)
-	err = executor.ProcessOrder(context.Background(), *bid)
+	err = executor.ProcessOrder(context.Background(), bid)
 	if err != nil {
 		t.Log(err.Error())
 	}

@@ -13,33 +13,35 @@ import (
 	"mini-stock-exchange/internal/observability"
 	"mini-stock-exchange/internal/repository"
 	"mini-stock-exchange/internal/usecase"
+	"mini-stock-exchange/internal/utils"
+
+	"github.com/google/uuid"
 )
 
 type Executor interface {
-	ProcessOrder(ctx context.Context, order entity.Order) error
+	ProcessOrder(ctx context.Context, order *entity.Order) error
 	Stop()
 }
 
 type executor struct {
 	symbol       string
-	bidHeap      order_heap.OrderHeap
-	askHeap      order_heap.OrderHeap
+	bidHeap      *utils.PriorityQueue[*entity.Order]
+	askHeap      *utils.PriorityQueue[*entity.Order]
 	orderRepo    repository.OrderRepository
 	matchUsecase usecase.OrderMatchUsecase
 	createTrade  usecase.CreateTradeUsecase
 	mu           sync.Mutex
-	orderChan    chan entity.Order
+	orderChan    chan *entity.Order
 	ctx          context.Context
 	cancel       context.CancelFunc
 }
 
-// TODO should ignore some erros, do not
 func NewExecutor(
 	symbol string, orderRepo repository.OrderRepository,
 	matchUsecase usecase.OrderMatchUsecase, createTrade usecase.CreateTradeUsecase,
 ) Executor {
-	bidHeap := order_heap.NewBidHeap(symbol, config.ENV.ExecutorCapacity, orderRepo)
-	askHeap := order_heap.NewAskHeap(symbol, config.ENV.ExecutorCapacity, orderRepo)
+	bidHeap := order_heap.NewBidHeap(config.ENV.ExecutorCapacity)
+	askHeap := order_heap.NewAskHeap(config.ENV.ExecutorCapacity)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -50,7 +52,7 @@ func NewExecutor(
 		orderRepo:    orderRepo,
 		matchUsecase: matchUsecase,
 		createTrade:  createTrade,
-		orderChan:    make(chan entity.Order, config.ENV.ExecutorCapacity),
+		orderChan:    make(chan *entity.Order, config.ENV.ExecutorCapacity),
 		ctx:          ctx,
 		cancel:       cancel,
 	}
@@ -60,7 +62,7 @@ func NewExecutor(
 	return e
 }
 
-func (e *executor) ProcessOrder(ctx context.Context, order entity.Order) error {
+func (e *executor) ProcessOrder(ctx context.Context, order *entity.Order) error {
 	select {
 	case e.orderChan <- order:
 		return nil
@@ -86,7 +88,7 @@ func (e *executor) run() {
 	}
 }
 
-func (e *executor) matchMake(order entity.Order) {
+func (e *executor) matchMake(order *entity.Order) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -95,8 +97,8 @@ func (e *executor) matchMake(order entity.Order) {
 		observability.MatchingLatency.Observe(time.Since(start).Seconds())
 	}()
 
-	var OrderHeap order_heap.OrderHeap
-	var matchHeap order_heap.OrderHeap
+	var OrderHeap *utils.PriorityQueue[*entity.Order]
+	var matchHeap *utils.PriorityQueue[*entity.Order]
 	switch order.Type {
 	case entity.Bid:
 		OrderHeap = e.bidHeap
@@ -108,35 +110,58 @@ func (e *executor) matchMake(order entity.Order) {
 		return
 	}
 
+	now := time.Now()
+	retryArr := []*entity.Order{}
+	expiredArr := []uuid.UUID{}
+
 	for 0 < order.RemainingQuantity {
-		dto, err := matchHeap.Pop(order)
-		if err != nil {
-			slog.Error("failed to pop order from heap", "error", err, "order_id", order.ID)
-			if dto == nil {
-				return
+		match, ok := matchHeap.Peek()
+		if !ok {
+			var err error
+			var orders []entity.Order
+			if order.Type == entity.Bid {
+				orders, err = e.orderRepo.GetAsks(e.symbol, e.askHeap.Cap())
+			} else {
+				orders, err = e.orderRepo.GetBids(e.symbol, e.bidHeap.Cap())
 			}
-		}
-
-		if err := e.orderRepo.Expire(dto.Expired); err != nil {
-			slog.Error("failed to update expired order", "error", err)
-		}
-
-		if len(dto.Matches) == 0 {
-			break
-		}
-
-		for m, match := range dto.Matches {
-			if err := e.match(&order, &match); err != nil {
-				slog.Error("failed to match order", "error", err, "order_id", order.ID, "match_id", match.ID)
-				for p := m; p < len(dto.Matches); p++ {
-					matchHeap.Push(dto.Matches[p])
-				}
+			if err != nil {
+				slog.Error("failed to get orders from database", "error", err)
 				break
 			}
-			if 0 < match.RemainingQuantity {
-				matchHeap.Push(match)
+			if len(orders) == 0 {
+				break
 			}
+			for _, order := range orders {
+				matchHeap.Push(&order)
+			}
+			continue
 		}
+
+		if order.OwnerDoc == match.OwnerDoc {
+			retryArr = append(retryArr, match)
+			matchHeap.Drop()
+			continue
+		}
+
+		if match.ValidUntil.Before(now) {
+			expiredArr = append(expiredArr, match.ID)
+			matchHeap.Drop()
+			continue
+		}
+
+		if err := e.match(order, match); err != nil {
+			slog.Error("failed to match order", "error", err, "order_id", order.ID, "match_id", match.ID)
+			break
+		}
+		matchHeap.Drop()
+		if 0 < match.RemainingQuantity {
+			matchHeap.Push(match)
+			break
+		}
+	}
+
+	if err := e.orderRepo.Expire(expiredArr); err != nil {
+		slog.Error("failed to update expired order", "error", err)
 	}
 
 	if 0 < order.RemainingQuantity {
@@ -144,24 +169,11 @@ func (e *executor) matchMake(order entity.Order) {
 	}
 }
 
-func (e *executor) match(order1 *entity.Order, order2 *entity.Order) error {
-	if order1 == nil || order2 == nil {
-		return fmt.Errorf("order is nil")
-	}
-
-	bid, ask := order1, order2
-	if bid.Type == entity.Ask && ask.Type == entity.Bid {
-		bid, ask = ask, bid
-	}
-	if bid.Type == entity.Ask || ask.Type == entity.Bid {
-		return fmt.Errorf("order type mismatch")
-	}
-
-	dto, err := e.matchUsecase.MatchOrder(bid, ask)
+func (e *executor) match(order *entity.Order, match *entity.Order) error {
+	dto, err := e.matchUsecase.MatchOrder(order, match)
 	if err != nil {
 		return fmt.Errorf("failed to match order: %w", err)
 	}
-
 	trade, err := e.createTrade.CreateTrade(dto)
 	defer func() {
 		if err != nil {
@@ -174,8 +186,8 @@ func (e *executor) match(order1 *entity.Order, order2 *entity.Order) error {
 	}
 
 	err = e.orderRepo.Match(e.ctx, repository.MatchDTO{
-		Ask:   *ask,
-		Bid:   *bid,
+		Ask:   *dto.Ask,
+		Bid:   *dto.Bid,
 		Trade: trade,
 	})
 	if err != nil {

@@ -13,6 +13,7 @@ migrate:
 	docker compose run --rm migration
 
 test: build
+	go test -count=1 -v -cover ./...  
 	python3 ./scripts/test.py
 
 clean:
