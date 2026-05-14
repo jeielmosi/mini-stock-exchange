@@ -40,6 +40,7 @@ func (o *orderService) GetOrder(req dto.GetOrderRequest) (dto.GetOrderResponse, 
 		if err := o.orderRepo.Expire([]uuid.UUID{order.ID}); err != nil {
 			return dto.GetOrderResponse{}, err
 		}
+		order.Status = entity.Expired
 	}
 
 	broker, err := o.brokerSvc.GetBrokerByID(order.BrokerID)

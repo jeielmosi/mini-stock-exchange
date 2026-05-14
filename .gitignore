@@ -6,8 +6,10 @@ go.sum
 kilo.jsonc
 .kilo/*
 
+.volume/*
 .volume/grafana/*
 !.volume/grafana/datasources.yml
+.volume/postgresql/*
 !.volume/prometheus/*
 !.volume/prometheus/prometheus.yml
 !.volume/promtail/*
