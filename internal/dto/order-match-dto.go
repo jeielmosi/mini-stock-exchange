@@ -1,22 +1,21 @@
 package dto
 
 import (
+	"math/big"
 	"mini-stock-exchange/internal/entity"
 	"time"
-
-	"github.com/shopspring/decimal"
 )
 
 type OrderMatch struct {
 	Ask        *entity.Order
 	Bid        *entity.Order
 	Quantity   int
-	Price      decimal.Decimal
+	Price      *big.Rat
 	ExecutedAt time.Time
 }
 
-func NewOrderMatch(ask *entity.Order, bid *entity.Order, quantity int, price decimal.Decimal) OrderMatch {
-	now := time.Now().UTC()
+func NewOrderMatch(ask *entity.Order, bid *entity.Order, quantity int, price *big.Rat) OrderMatch {
+	now := time.Now()
 	return OrderMatch{
 		Ask:        ask,
 		Bid:        bid,

@@ -8,7 +8,7 @@ import (
 	"mini-stock-exchange/internal/entity"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
+	"math/big"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,7 +57,7 @@ func TestTradeRepository_GetByID_Found(t *testing.T) {
 		OwnerDoc:          "doc1",
 		Type:              entity.Bid,
 		Symbol:            symbol,
-		Price:             decimal.NewFromFloat(150.0),
+		Price:             new(big.Rat).SetFloat64(150.0),
 		Quantity:          100,
 		RemainingQuantity: 100,
 		ValidUntil:        now.Add(time.Hour),
@@ -70,7 +70,7 @@ func TestTradeRepository_GetByID_Found(t *testing.T) {
 		OwnerDoc:          "doc2",
 		Type:              entity.Ask,
 		Symbol:            symbol,
-		Price:             decimal.NewFromFloat(150.0),
+		Price:             new(big.Rat).SetFloat64(150.0),
 		Quantity:          100,
 		RemainingQuantity: 100,
 		ValidUntil:        now.Add(time.Hour),
@@ -85,12 +85,12 @@ func TestTradeRepository_GetByID_Found(t *testing.T) {
 
 	// Insert a trade
 	tradeID := uuid.New()
-	tradePrice := decimal.NewFromFloat(150.0)
+	tradePrice := new(big.Rat).SetFloat64(150.0)
 	tradeQuantity := 100
 	executedAt := now
 
 	query := `INSERT INTO trades (id, symbol, price, quantity, executed_at, buy_order_id, sell_order_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`
-	_, err = db.Exec(query, tradeID, symbol, tradePrice, tradeQuantity, executedAt, buyOrderID, sellOrderID)
+	_, err = db.Exec(query, tradeID, symbol, tradePrice.FloatString(8), tradeQuantity, executedAt, buyOrderID, sellOrderID)
 	require.NoError(t, err)
 
 	// Get the trade
@@ -100,7 +100,7 @@ func TestTradeRepository_GetByID_Found(t *testing.T) {
 	// Assertions
 	assert.Equal(t, tradeID, retrievedTrade.ID)
 	assert.Equal(t, symbol, retrievedTrade.Symbol)
-	assert.True(t, tradePrice.Equal(retrievedTrade.Price))
+	assert.True(t, tradePrice.Cmp(retrievedTrade.Price) == 0)
 	assert.Equal(t, tradeQuantity, retrievedTrade.Quantity)
 	// Use tolerance for time comparison since PostgreSQL truncates to microseconds
 	assert.True(t, executedAt.Sub(retrievedTrade.ExecutedAt).Abs() < time.Microsecond)

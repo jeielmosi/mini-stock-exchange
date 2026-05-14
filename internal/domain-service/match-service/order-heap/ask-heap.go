@@ -13,10 +13,10 @@ func askCmp(lhs *entity.Order, rhs *entity.Order) bool {
 		return true
 	}
 
-	if lhs.Price.Equal(rhs.Price) {
+	if lhs.Price.Cmp(rhs.Price) == 0 {
 		return lhs.CreatedAt.Before(rhs.CreatedAt)
 	}
-	return lhs.Price.LessThan(rhs.Price)
+	return lhs.Price.Cmp(rhs.Price) < 0
 }
 
 func NewAskHeap(capacity int) *utils.PriorityQueue[*entity.Order] {

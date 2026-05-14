@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
+	"math/big"
 )
 
 type Trade struct {
@@ -12,12 +12,12 @@ type Trade struct {
 	BuyOrderID  uuid.UUID
 	SellOrderID uuid.UUID
 	Symbol      string
-	Price       decimal.Decimal
+	Price       *big.Rat
 	Quantity    int
 	ExecutedAt  time.Time
 }
 
-func NewTrade(id uuid.UUID, buyOrderID uuid.UUID, sellOrderID uuid.UUID, symbol string, price decimal.Decimal, quantity int, executedAt time.Time) Trade {
+func NewTrade(id uuid.UUID, buyOrderID uuid.UUID, sellOrderID uuid.UUID, symbol string, price *big.Rat, quantity int, executedAt time.Time) Trade {
 	return Trade{
 		ID:          id,
 		BuyOrderID:  buyOrderID,

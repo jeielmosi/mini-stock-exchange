@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"errors"
 	dto_helper "mini-stock-exchange/internal/dto/helper"
 	"mini-stock-exchange/internal/entity"
 
@@ -44,10 +45,15 @@ func NewGetTradeResponse(trade entity.Trade) (GetTradeResponse, error) {
 		return GetTradeResponse{}, err
 	}
 
+	price, ok := trade.Price.Float64()
+	if !ok {
+		return GetTradeResponse{}, errors.New("failed to parse price")
+	}
+
 	return GetTradeResponse{
 		ID:       id,
 		Symbol:   trade.Symbol,
-		Price:    trade.Price.InexactFloat64(),
+		Price:    price,
 		Quantity: trade.Quantity,
 		AskID:    askID,
 		BidID:    buyID,

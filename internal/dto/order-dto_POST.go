@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
+	"math/big"
 )
 
 type CreateOrderRequest struct {
@@ -36,7 +36,7 @@ func (r *CreateOrderRequest) ToOrder() (entity.Order, error) {
 
 	return entity.NewOrder(
 		brokerID, r.OwnerDoc, r.Symbol,
-		r.Type, decimal.NewFromFloat(r.Price),
+		r.Type, new(big.Rat).SetFloat64(r.Price),
 		r.Quantity, validUntil,
 	)
 }

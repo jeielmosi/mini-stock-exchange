@@ -13,10 +13,10 @@ func bidCmp(lhs *entity.Order, rhs *entity.Order) bool {
 		return true
 	}
 
-	if lhs.Price.Equal(rhs.Price) {
+	if lhs.Price.Cmp(rhs.Price) == 0 {
 		return lhs.CreatedAt.Before(rhs.CreatedAt)
 	}
-	return lhs.Price.GreaterThan(rhs.Price)
+	return 0 < lhs.Price.Cmp(rhs.Price)
 }
 
 func NewBidHeap(capacity int) *utils.PriorityQueue[*entity.Order] {

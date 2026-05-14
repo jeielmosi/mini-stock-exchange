@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"math/big"
 
 	"mini-stock-exchange/internal/config"
 	"mini-stock-exchange/internal/entity"
@@ -42,11 +43,19 @@ func (r *tradeRepository) Stop() error {
 
 func (r *tradeRepository) GetByID(id uuid.UUID) (entity.Trade, error) {
 	trade := entity.Trade{}
+	var priceStr string
 	query := `SELECT id, symbol, price, quantity, executed_at, buy_order_id, sell_order_id FROM trades WHERE id = $1`
-	err := r.db.QueryRow(query, id).Scan(&trade.ID, &trade.Symbol, &trade.Price, &trade.Quantity, &trade.ExecutedAt, &trade.BuyOrderID, &trade.SellOrderID)
+	err := r.db.QueryRow(query, id).Scan(&trade.ID, &trade.Symbol, &priceStr, &trade.Quantity, &trade.ExecutedAt, &trade.BuyOrderID, &trade.SellOrderID)
 	if err != nil {
 		return trade, err
 	}
+
+	price, ok := new(big.Rat).SetString(priceStr)
+	if !ok {
+		return trade, fmt.Errorf("failed to parse price: %s", priceStr)
+	}
+	trade.Price = price
+
 	return trade, nil
 }
 

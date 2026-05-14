@@ -44,7 +44,7 @@ func (u *orderMatchUsecase) CouldMatch(o1 *entity.Order, o2 *entity.Order) bool 
 		return false
 	}
 
-	if bid.Price.LessThan(ask.Price) {
+	if bid.Price.Cmp(ask.Price) < 0 {
 		return false
 	}
 	return true

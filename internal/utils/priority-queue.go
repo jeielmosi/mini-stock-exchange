@@ -2,8 +2,8 @@ package utils
 
 type PriorityQueue[T any] struct {
 	heap []T
-	mn   []int             //keep the index of the lower priority leaf of sub-tree
-	cmp  func(a, b T) bool //returns if a have higher priority than b
+	mn   []int             //keep the index of the lower priority of sub-trees (if there is a tie, it should be the highest height)
+	cmp  func(a, b T) bool //returns if a have higher priority than b, on tie should return false
 }
 
 func NewPriorityQueue[T any](cmp func(a, b T) bool, capacity int) *PriorityQueue[T] {
@@ -23,10 +23,10 @@ func (pq *PriorityQueue[T]) Cap() int {
 
 func (pq *PriorityQueue[T]) Push(item T) {
 	if len(pq.heap) == cap(pq.heap) {
-		mn := pq.mn[0]
-		if pq.cmp(item, pq.heap[mn]) {
-			pq.heap[mn] = item
-			pq.toRoot(mn)
+		rm := pq.mn[0]
+		if pq.cmp(item, pq.heap[rm]) {
+			pq.heap[rm] = item
+			pq.toRoot(rm)
 		}
 		return
 	}
@@ -72,25 +72,32 @@ func (pq *PriorityQueue[T]) Peek() (T, bool) {
 	return pq.heap[0], true
 }
 
+// TODO test in tie, I have changed this func
 func (pq *PriorityQueue[T]) updateMn(root int) {
 	size := len(pq.heap)
 	left := root*2 + 1
 	right := root*2 + 2
 
-	pq.mn[root] = root
+	c := root
+	defer func() {
+		pq.mn[root] = c
+	}()
+
 	if size <= left {
 		return
 	}
-	left = pq.mn[left]
+	l := pq.mn[left]
+	if pq.cmp(pq.heap[c], pq.heap[l]) {
+		c = l
+	}
 
-	pq.mn[root] = left
 	if size <= right {
 		return
 	}
-	right = pq.mn[right]
+	r := pq.mn[right]
 
-	if pq.cmp(pq.heap[left], pq.heap[right]) {
-		pq.mn[root] = right
+	if pq.cmp(pq.heap[c], pq.heap[r]) {
+		c = r
 	}
 }
 
@@ -98,7 +105,7 @@ func (pq *PriorityQueue[T]) updateMn(root int) {
 func (pq *PriorityQueue[T]) toRoot(child int) {
 	for 0 < child {
 		parent := (child - 1) / 2
-		if pq.cmp(pq.heap[parent], pq.heap[child]) {
+		if !pq.cmp(pq.heap[child], pq.heap[parent]) {
 			break
 		}
 		pq.heap[parent], pq.heap[child] = pq.heap[child], pq.heap[parent]
@@ -126,7 +133,7 @@ func (pq *PriorityQueue[T]) toLeaf(root int) {
 	child := left
 
 	right := root*2 + 2
-	if right < size && pq.cmp(pq.heap[right], pq.heap[left]) {
+	if right < size && pq.cmp(pq.heap[right], pq.heap[child]) {
 		child = right
 	}
 	if pq.cmp(pq.heap[child], pq.heap[root]) {

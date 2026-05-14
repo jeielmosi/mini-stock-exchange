@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 
+	"math/big"
 	"mini-stock-exchange/internal/entity"
 
 	"github.com/google/uuid"
@@ -48,17 +50,25 @@ func (r *orderRepository) Stop() error {
 func (r *orderRepository) Insert(order entity.Order) error {
 	query := `INSERT INTO orders (id, broker_id, owner_doc, type, symbol, price, quantity, remaining_quantity, valid_until, status, created_at) 
 	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
-	_, err := r.db.Exec(query, order.ID, order.BrokerID, order.OwnerDoc, order.Type, order.Symbol, order.Price, order.Quantity, order.RemainingQuantity, order.ValidUntil, order.Status, order.CreatedAt)
+	_, err := r.db.Exec(query, order.ID, order.BrokerID, order.OwnerDoc, order.Type, order.Symbol, order.Price.FloatString(8), order.Quantity, order.RemainingQuantity, order.ValidUntil, order.Status, order.CreatedAt)
 	return err
 }
 
 func (r *orderRepository) GetByID(id uuid.UUID) (entity.Order, error) {
 	order := entity.Order{}
+	var priceStr string
 	query := `SELECT id, broker_id, owner_doc, type, symbol, price, quantity, remaining_quantity, valid_until, status, created_at FROM orders WHERE id = $1`
-	err := r.db.QueryRow(query, id).Scan(&order.ID, &order.BrokerID, &order.OwnerDoc, &order.Type, &order.Symbol, &order.Price, &order.Quantity, &order.RemainingQuantity, &order.ValidUntil, &order.Status, &order.CreatedAt)
+	err := r.db.QueryRow(query, id).Scan(&order.ID, &order.BrokerID, &order.OwnerDoc, &order.Type, &order.Symbol, &priceStr, &order.Quantity, &order.RemainingQuantity, &order.ValidUntil, &order.Status, &order.CreatedAt)
 	if err != nil {
 		return order, err
 	}
+
+	price, ok := new(big.Rat).SetString(priceStr)
+	if !ok {
+		return order, fmt.Errorf("failed to parse price: %s", priceStr)
+	}
+	order.Price = price
+
 	return order, nil
 }
 
@@ -90,7 +100,7 @@ func (r *orderRepository) Match(ctx context.Context, match MatchDTO) error {
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO trades (id, symbol, price, quantity, executed_at, buy_order_id, sell_order_id) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		match.Trade.ID, match.Trade.Symbol, match.Trade.Price, match.Trade.Quantity,
+		match.Trade.ID, match.Trade.Symbol, match.Trade.Price.FloatString(8), match.Trade.Quantity,
 		match.Trade.ExecutedAt, match.Trade.BuyOrderID, match.Trade.SellOrderID,
 	)
 	if err != nil {
@@ -161,15 +171,23 @@ func rowsToOrders(rows *sql.Rows) ([]entity.Order, error) {
 	var orders []entity.Order
 	for rows.Next() {
 		order := entity.Order{}
+		var priceStr string
 		err := rows.Scan(
 			&order.ID, &order.BrokerID, &order.OwnerDoc,
-			&order.Type, &order.Symbol, &order.Price,
+			&order.Type, &order.Symbol, &priceStr,
 			&order.Quantity, &order.RemainingQuantity, &order.ValidUntil,
 			&order.Status, &order.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		price, ok := new(big.Rat).SetString(priceStr)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse price: %s", priceStr)
+		}
+		order.Price = price
+
 		orders = append(orders, order)
 	}
 	return orders, nil

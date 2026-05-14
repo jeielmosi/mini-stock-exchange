@@ -11,7 +11,7 @@ import (
 	"mini-stock-exchange/internal/usecase"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
+	"math/big"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,7 +53,7 @@ func TestSymbolExecutor_ProcessOrder(t *testing.T) {
 	order := entity.Order{
 		ID:                mustUUID(),
 		Symbol:            "AAPL",
-		Price:             decimal.NewFromInt(150),
+		Price:             new(big.Rat).SetInt64(150),
 		Quantity:          10,
 		RemainingQuantity: 10,
 		Type:              entity.Bid,
@@ -96,7 +96,7 @@ func TestSymbolExecutor_MatchMaking(t *testing.T) {
 	ask := &entity.Order{
 		ID:                mustUUID(),
 		Symbol:            "AAPL",
-		Price:             decimal.NewFromInt(150),
+		Price:             new(big.Rat).SetInt64(150),
 		Quantity:          10,
 		RemainingQuantity: 10,
 		Type:              entity.Ask,
@@ -116,7 +116,7 @@ func TestSymbolExecutor_MatchMaking(t *testing.T) {
 	bid := &entity.Order{
 		ID:                mustUUID(),
 		Symbol:            "AAPL",
-		Price:             decimal.NewFromInt(150),
+		Price:             new(big.Rat).SetInt64(150),
 		Quantity:          10,
 		RemainingQuantity: 10,
 		Status:            entity.Pending,

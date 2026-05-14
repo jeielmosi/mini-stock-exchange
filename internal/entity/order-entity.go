@@ -5,7 +5,23 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
+	"math/big"
+)
+
+type OrderType string
+
+const (
+	Bid OrderType = "BID"
+	Ask OrderType = "ASK"
+)
+
+type OrderStatus string
+
+const (
+	Pending OrderStatus = "PENDING"
+	Partial OrderStatus = "PARTIAL"
+	Filled  OrderStatus = "FILLED"
+	Expired OrderStatus = "EXPIRED"
 )
 
 type Order struct {
@@ -15,7 +31,7 @@ type Order struct {
 	OwnerDoc          string
 	Symbol            string
 	Type              OrderType
-	Price             decimal.Decimal
+	Price             *big.Rat
 	Quantity          int
 	RemainingQuantity int
 	ValidUntil        time.Time
@@ -26,7 +42,7 @@ type Order struct {
 func NewOrder(
 	brokerID uuid.UUID,
 	ownerDoc, symbol string,
-	orderType OrderType, price decimal.Decimal,
+	orderType OrderType, price *big.Rat,
 	quantity int, validUntil time.Time,
 ) (Order, error) {
 	uuid, err := uuid.NewV7()

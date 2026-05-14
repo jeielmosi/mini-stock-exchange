@@ -8,7 +8,7 @@ import (
 	"mini-stock-exchange/internal/entity"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
+	"math/big"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +40,7 @@ func TestOrderRepository(t *testing.T) {
 			OwnerDoc:          "doc1",
 			Type:              entity.Bid,
 			Symbol:            "AAPL",
-			Price:             decimal.NewFromFloat(150.0),
+			Price:             new(big.Rat).SetFloat64(150.0),
 			Quantity:          100,
 			RemainingQuantity: 100,
 			ValidUntil:        time.Now().Add(time.Hour),
@@ -55,7 +55,7 @@ func TestOrderRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, order.ID, fetched.ID)
 		assert.Equal(t, order.Symbol, fetched.Symbol)
-		assert.True(t, order.Price.Equal(fetched.Price))
+		assert.True(t, order.Price.Cmp(fetched.Price) == 0)
 	})
 
 	t.Run("GetBids and GetAsks", func(t *testing.T) {
@@ -73,7 +73,7 @@ func TestOrderRepository(t *testing.T) {
 				OwnerDoc:          "d1",
 				Type:              entity.Bid,
 				Symbol:            symbol,
-				Price:             decimal.NewFromFloat(150.0),
+				Price:             new(big.Rat).SetFloat64(150.0),
 				Quantity:          10,
 				RemainingQuantity: 10,
 				ValidUntil:        time.Now().Add(time.Hour),
@@ -86,7 +86,7 @@ func TestOrderRepository(t *testing.T) {
 				OwnerDoc:          "d2",
 				Type:              entity.Ask,
 				Symbol:            symbol,
-				Price:             decimal.NewFromFloat(151.0),
+				Price:             new(big.Rat).SetFloat64(151.0),
 				Quantity:          10,
 				RemainingQuantity: 10,
 				ValidUntil:        time.Now().Add(time.Hour),
@@ -123,7 +123,7 @@ func TestOrderRepository(t *testing.T) {
 			OwnerDoc:          "doc1",
 			Type:              entity.Ask,
 			Symbol:            symbol,
-			Price:             decimal.NewFromFloat(150.0),
+			Price:             new(big.Rat).SetFloat64(150.0),
 			Quantity:          100,
 			RemainingQuantity: 100,
 			ValidUntil:        time.Now().Add(time.Hour),
@@ -137,7 +137,7 @@ func TestOrderRepository(t *testing.T) {
 			OwnerDoc:          "doc2",
 			Type:              entity.Bid,
 			Symbol:            symbol,
-			Price:             decimal.NewFromFloat(150.0),
+			Price:             new(big.Rat).SetFloat64(150.0),
 			Quantity:          100,
 			RemainingQuantity: 100,
 			ValidUntil:        time.Now().Add(time.Hour),
@@ -159,7 +159,7 @@ func TestOrderRepository(t *testing.T) {
 		trade := entity.Trade{
 			ID:          tradeID,
 			Symbol:      symbol,
-			Price:       decimal.NewFromFloat(150.0),
+			Price:       new(big.Rat).SetFloat64(150.0),
 			Quantity:    100,
 			ExecutedAt:  now,
 			BuyOrderID:  bidID,

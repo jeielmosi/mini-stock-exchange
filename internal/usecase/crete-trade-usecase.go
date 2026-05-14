@@ -28,7 +28,7 @@ func (c *createTradeUsecase) CreateTrade(dto dto.OrderMatch) (entity.Trade, erro
 	if dto.Ask.Quantity < dto.Quantity || dto.Bid.Quantity < dto.Quantity {
 		return entity.Trade{}, fmt.Errorf("quantity exceeds order quantity")
 	}
-	if dto.Price.IsZero() {
+	if dto.Price == nil || dto.Price.Sign() == 0 {
 		return entity.Trade{}, fmt.Errorf("invalid price")
 	}
 	if dto.Ask.OwnerDoc == dto.Bid.OwnerDoc {
