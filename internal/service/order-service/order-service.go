@@ -37,7 +37,9 @@ func (o *orderService) GetOrder(req dto.GetOrderRequest) (dto.GetOrderResponse, 
 		return dto.GetOrderResponse{}, err
 	}
 	if order.ValidUntil.Before(now) {
-		o.orderRepo.Expire([]uuid.UUID{order.ID})
+		if err := o.orderRepo.Expire([]uuid.UUID{order.ID}); err != nil {
+			return dto.GetOrderResponse{}, err
+		}
 	}
 
 	broker, err := o.brokerSvc.GetBrokerByID(order.BrokerID)

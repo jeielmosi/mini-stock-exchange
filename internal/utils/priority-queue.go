@@ -112,7 +112,7 @@ func (pq *PriorityQueue[T]) toRoot(child int) {
 	}
 }
 
-// update the leaf from curr until the leaf
+// update from root until the leaf
 func (pq *PriorityQueue[T]) toLeaf(root int) {
 	size := len(pq.heap)
 
