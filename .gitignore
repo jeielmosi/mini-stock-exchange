@@ -6,11 +6,14 @@ go.sum
 kilo.jsonc
 .kilo/*
 
-.volume/
+.volume/grafana/*
 !.volume/grafana/datasources.yml
+!.volume/prometheus/*
 !.volume/prometheus/prometheus.yml
+!.volume/promtail/*
 !.volume/promtail/promtail-config.yml
-!.volume/tempo/tempo.yml
+!.volume/tempo/*
+!.volume/tempo/tempo.yaml
 
 
 
