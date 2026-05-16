@@ -72,7 +72,6 @@ func (pq *PriorityQueue[T]) Peek() (T, bool) {
 	return pq.heap[0], true
 }
 
-// TODO test in tie, I have changed this func
 func (pq *PriorityQueue[T]) updateMn(root int) {
 	size := len(pq.heap)
 	left := root*2 + 1
@@ -115,6 +114,9 @@ func (pq *PriorityQueue[T]) toRoot(child int) {
 	for 0 < child {
 		parent := (child - 1) / 2
 		pq.updateMn(parent)
+		if pq.mn[parent] != pq.mn[child] {
+			break
+		}
 		child = parent
 	}
 }
