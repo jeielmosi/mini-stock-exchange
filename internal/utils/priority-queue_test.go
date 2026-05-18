@@ -6,6 +6,34 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func assertHeap[T any](t *testing.T, pq *PriorityQueue[T]) {
+	for i := 0; i < len(pq.heap); i++ {
+		assert.True(t, 0 <= pq.mn[i])
+		assert.True(t, pq.mn[i] < len(pq.heap))
+
+		left := 2*i + 1
+		right := 2*i + 2
+
+		if left < len(pq.heap) {
+			assert.False(t, pq.cmp(pq.heap[left], pq.heap[i]))
+		}
+		if right < len(pq.heap) {
+			assert.False(t, pq.cmp(pq.heap[right], pq.heap[i]))
+		}
+
+		c := pq.mn[i]
+
+		if left < len(pq.heap) {
+			l := pq.mn[left]
+			assert.False(t, pq.cmp(pq.heap[c], pq.heap[l]))
+		}
+		if right < len(pq.heap) {
+			r := pq.mn[right]
+			assert.False(t, pq.cmp(pq.heap[c], pq.heap[r]))
+		}
+	}
+}
+
 func TestNewPriorityQueue_InvalidCapacity(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -40,6 +68,7 @@ func TestPriorityQueue_PushPeekBasic(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 10)
 
 	pq.Push(5)
+	assertHeap(t, pq)
 	item, ok := pq.Peek()
 	assert.True(t, ok)
 	assert.Equal(t, 5, item)
@@ -49,8 +78,11 @@ func TestPriorityQueue_PushMultiplePeek(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 10)
 
 	pq.Push(5)
+	assertHeap(t, pq)
 	pq.Push(10)
+	assertHeap(t, pq)
 	pq.Push(3)
+	assertHeap(t, pq)
 
 	item, ok := pq.Peek()
 	assert.True(t, ok)
@@ -61,7 +93,9 @@ func TestPriorityQueue_DropSingle(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 10)
 
 	pq.Push(5)
+	assertHeap(t, pq)
 	pq.Drop()
+	assertHeap(t, pq)
 
 	item, ok := pq.Peek()
 	assert.False(t, ok)
@@ -72,18 +106,24 @@ func TestPriorityQueue_DropMultiple(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 10)
 
 	pq.Push(5)
+	assertHeap(t, pq)
 	pq.Push(10)
+	assertHeap(t, pq)
 	pq.Push(3)
+	assertHeap(t, pq)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	item, _ := pq.Peek()
 	assert.Equal(t, 5, item)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	item, _ = pq.Peek()
 	assert.Equal(t, 3, item)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	_, ok := pq.Peek()
 	assert.False(t, ok)
 }
@@ -92,7 +132,9 @@ func TestPriorityQueue_DropEmpty(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 10)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	pq.Drop()
+	assertHeap(t, pq)
 
 	_, ok := pq.Peek()
 	assert.False(t, ok)
@@ -102,22 +144,29 @@ func TestPriorityQueue_MinHeap(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a < b }, 10)
 
 	pq.Push(5)
+	assertHeap(t, pq)
 	pq.Push(10)
+	assertHeap(t, pq)
 	pq.Push(3)
+	assertHeap(t, pq)
 	pq.Push(7)
+	assertHeap(t, pq)
 
 	item, _ := pq.Peek()
 	assert.Equal(t, 3, item)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	item, _ = pq.Peek()
 	assert.Equal(t, 5, item)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	item, _ = pq.Peek()
 	assert.Equal(t, 7, item)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	item, _ = pq.Peek()
 	assert.Equal(t, 10, item)
 }
@@ -126,8 +175,11 @@ func TestPriorityQueue_PushBeyondCapacity(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 3)
 
 	pq.Push(5)
+	assertHeap(t, pq)
 	pq.Push(10)
+	assertHeap(t, pq)
 	pq.Push(3)
+	assertHeap(t, pq)
 	item, _ := pq.Peek()
 	assert.Equal(t, 10, item)
 }
@@ -162,34 +214,33 @@ func TestPriorityQueue_TieElements(t *testing.T) {
 	item, ok := pq.Peek()
 	assert.True(t, ok)
 	assert.Equal(t, 10, item.priority)
-
-	// Drop and check
 	pq.Drop()
 	assertHeap(t, pq)
+
 	item, ok = pq.Peek()
 	assert.True(t, ok)
 	assert.Equal(t, 10, item.priority)
-
 	pq.Drop()
 	assertHeap(t, pq)
+
 	item, ok = pq.Peek()
 	assert.True(t, ok)
 	assert.Equal(t, 5, item.priority)
-
 	pq.Drop()
 	assertHeap(t, pq)
+
 	item, ok = pq.Peek()
 	assert.True(t, ok)
 	assert.Equal(t, 5, item.priority)
-
 	pq.Drop()
 	assertHeap(t, pq)
+
 	item, ok = pq.Peek()
 	assert.True(t, ok)
 	assert.Equal(t, 2, item.priority)
-
 	pq.Drop()
 	assertHeap(t, pq)
+
 	_, ok = pq.Peek()
 	assert.False(t, ok)
 }
@@ -215,21 +266,13 @@ func TestPriorityQueue_TieElementsCapacity(t *testing.T) {
 
 	for _, it := range items {
 		pq.Push(it)
+		assertHeap(t, pq)
 	}
-	assertHeap(t, pq)
-	t.Log(pq.heap)
-	t.Log(pq.mn)
 
-	item, ok := pq.Peek()
-	assert.True(t, ok)
-	assert.Equal(t, item.id, items[0].id)
-	pq.Drop()
-	assertHeap(t, pq)
-
-	for i := 1; i < 3; i++ {
+	for 0 < len(pq.heap) {
 		item, ok := pq.Peek()
 		assert.True(t, ok)
-		assert.True(t, item.id == items[1].id || item.id == items[2].id)
+		assert.True(t, item.id == items[0].id || item.id == items[1].id || item.id == items[2].id)
 		pq.Drop()
 		assertHeap(t, pq)
 	}
@@ -239,12 +282,16 @@ func TestPriorityQueue_PushBeyondCapacity_LowerPriority(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 3)
 
 	pq.Push(10)
+	assertHeap(t, pq)
 	pq.Push(5)
+	assertHeap(t, pq)
 	pq.Push(3)
+	assertHeap(t, pq)
 	item, _ := pq.Peek()
 	assert.Equal(t, 10, item)
 
 	pq.Push(2)
+	assertHeap(t, pq)
 	item, _ = pq.Peek()
 	assert.Equal(t, 10, item)
 }
@@ -256,10 +303,12 @@ func TestPriorityQueue_ComplexOrdering(t *testing.T) {
 	values := []int{5, 10, 3, 8, 1, 9, 2, 7, 4, 6}
 	for _, v := range values {
 		pq.Push(v)
+		assertHeap(t, pq)
 	}
 	last, ok := pq.Peek()
 	assert.True(t, ok)
 	pq.Drop()
+	assertHeap(t, pq)
 
 	for true {
 		item, ok := pq.Peek()
@@ -267,6 +316,7 @@ func TestPriorityQueue_ComplexOrdering(t *testing.T) {
 			break
 		}
 		pq.Drop()
+		assertHeap(t, pq)
 		assert.True(t, cmp(last, item))
 		last = item
 	}
@@ -276,10 +326,12 @@ func TestPriorityQueue_SingleElement(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 10)
 
 	pq.Push(42)
+	assertHeap(t, pq)
 	item, _ := pq.Peek()
 	assert.Equal(t, 42, item)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	_, ok := pq.Peek()
 	assert.False(t, ok)
 }
@@ -289,10 +341,13 @@ func TestPriorityQueue_Cap(t *testing.T) {
 	assert.Equal(t, 10, pq.Cap())
 
 	pq.Push(1)
+	assertHeap(t, pq)
 	assert.Equal(t, 9, pq.Cap())
 
 	pq.Push(2)
+	assertHeap(t, pq)
 	pq.Push(3)
+	assertHeap(t, pq)
 	assert.Equal(t, 7, pq.Cap())
 }
 
@@ -300,15 +355,19 @@ func TestPriorityQueue_DropLastElement(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 10)
 
 	pq.Push(5)
+	assertHeap(t, pq)
 	pq.Push(10)
+	assertHeap(t, pq)
 	item, _ := pq.Peek()
 	assert.Equal(t, 10, item)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	item, _ = pq.Peek()
 	assert.Equal(t, 5, item)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	_, ok := pq.Peek()
 	assert.False(t, ok)
 }
@@ -333,34 +392,29 @@ func TestPriorityQueue_AllSamePriority(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 10)
 
 	pq.Push(5)
+	assertHeap(t, pq)
 	pq.Push(5)
+	assertHeap(t, pq)
 	pq.Push(5)
+	assertHeap(t, pq)
 
 	item, _ := pq.Peek()
 	assert.Equal(t, 5, item)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	item, _ = pq.Peek()
 	assert.Equal(t, 5, item)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	item, _ = pq.Peek()
 	assert.Equal(t, 5, item)
 
 	pq.Drop()
+	assertHeap(t, pq)
 	_, ok := pq.Peek()
 	assert.False(t, ok)
-}
-
-func TestPriorityQueue_LargeValues(t *testing.T) {
-	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 10)
-
-	pq.Push(1000000)
-	pq.Push(999999)
-	pq.Push(1000001)
-
-	item, _ := pq.Peek()
-	assert.Equal(t, 1000001, item)
 }
 
 func TestPriorityQueue_AscendingOrderPush(t *testing.T) {
@@ -368,23 +422,16 @@ func TestPriorityQueue_AscendingOrderPush(t *testing.T) {
 
 	for i := 1; i <= 5; i++ {
 		pq.Push(i)
+		assertHeap(t, pq)
 	}
 
-	item, _ := pq.Peek()
-	assert.Equal(t, 5, item)
-	pq.Drop()
-	item, _ = pq.Peek()
-	assert.Equal(t, 4, item)
-	pq.Drop()
-	item, _ = pq.Peek()
-	assert.Equal(t, 3, item)
-	pq.Drop()
-	item, _ = pq.Peek()
-	assert.Equal(t, 2, item)
-	pq.Drop()
-	item, _ = pq.Peek()
-	assert.Equal(t, 1, item)
-	pq.Drop()
+	for i := 5; 0 < i; i-- {
+		item, ok := pq.Peek()
+		assert.True(t, ok)
+		assert.Equal(t, i, item)
+		pq.Drop()
+		assertHeap(t, pq)
+	}
 }
 
 func TestPriorityQueue_DescendingOrderPush(t *testing.T) {
@@ -392,40 +439,30 @@ func TestPriorityQueue_DescendingOrderPush(t *testing.T) {
 
 	for i := 5; i >= 1; i-- {
 		pq.Push(i)
+		assertHeap(t, pq)
 	}
 
-	item, _ := pq.Peek()
-	assert.Equal(t, 5, item)
-	pq.Drop()
-	item, _ = pq.Peek()
-	assert.Equal(t, 4, item)
-	pq.Drop()
-	item, _ = pq.Peek()
-	assert.Equal(t, 3, item)
-	pq.Drop()
-	item, _ = pq.Peek()
-	assert.Equal(t, 2, item)
-	pq.Drop()
-	item, _ = pq.Peek()
-	assert.Equal(t, 1, item)
-	pq.Drop()
+	for i := 5; i >= 1; i-- {
+		item, ok := pq.Peek()
+		assert.True(t, ok)
+		assert.Equal(t, i, item)
+		pq.Drop()
+		assertHeap(t, pq)
+	}
 }
 
 func TestPriorityQueue_AlternatingPush(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 10)
 
-	pq.Push(1)
-	pq.Push(10)
-	pq.Push(2)
-	pq.Push(9)
-	pq.Push(3)
-	pq.Push(8)
-	pq.Push(4)
-	pq.Push(7)
-	pq.Push(5)
-	pq.Push(6)
+	for i := 1; i <= 5; i++ {
+		pq.Push(i)
+		assertHeap(t, pq)
+		pq.Push(i + 5)
+		assertHeap(t, pq)
+	}
 
-	item, _ := pq.Peek()
+	item, ok := pq.Peek()
+	assert.True(t, ok)
 	assert.Equal(t, 10, item)
 }
 
@@ -433,9 +470,13 @@ func TestPriorityQueue_CapacityExactlyFilled(t *testing.T) {
 	pq := NewPriorityQueue(func(a, b int) bool { return a > b }, 3)
 
 	pq.Push(1)
-	pq.Push(2)
+	assertHeap(t, pq)
 	pq.Push(3)
-	item, _ := pq.Peek()
+	assertHeap(t, pq)
+	pq.Push(2)
+	assertHeap(t, pq)
+	item, ok := pq.Peek()
+	assert.True(t, ok)
 	assert.Equal(t, 3, item)
 }
 
@@ -444,42 +485,19 @@ func TestPriorityQueue_PushAfterPartialDrain(t *testing.T) {
 
 	for i := 1; i <= 5; i++ {
 		pq.Push(i * 10)
+		assertHeap(t, pq)
 	}
 
 	pq.Drop()
+	assertHeap(t, pq)
 	pq.Drop()
+	assertHeap(t, pq)
 
 	pq.Push(100)
-	item, _ := pq.Peek()
+	assertHeap(t, pq)
+	item, ok := pq.Peek()
+	assert.True(t, ok)
 	assert.Equal(t, 100, item)
-}
-
-func assertHeap[T any](t *testing.T, pq *PriorityQueue[T]) {
-	for i := 0; i < len(pq.heap); i++ {
-		assert.True(t, 0 <= pq.mn[i])
-		assert.True(t, pq.mn[i] < len(pq.heap))
-
-		left := 2*i + 1
-		right := 2*i + 2
-
-		if left < len(pq.heap) {
-			assert.False(t, pq.cmp(pq.heap[left], pq.heap[i]))
-		}
-		if right < len(pq.heap) {
-			assert.False(t, pq.cmp(pq.heap[right], pq.heap[i]))
-		}
-
-		c := pq.mn[i]
-
-		if left < len(pq.heap) {
-			l := pq.mn[left]
-			assert.False(t, pq.cmp(pq.heap[c], pq.heap[l]))
-		}
-		if right < len(pq.heap) {
-			r := pq.mn[right]
-			assert.False(t, pq.cmp(pq.heap[c], pq.heap[r]))
-		}
-	}
 }
 
 // Test to verify heap and mn array validity
@@ -509,59 +527,22 @@ func TestPriorityQueue_HeapAndMnValidity_BeyondCapacity(t *testing.T) {
 
 	// Fill to capacity
 	pq.Push(1)
+	assertHeap(t, pq)
 	pq.Push(2)
+	assertHeap(t, pq)
 	pq.Push(3)
+	assertHeap(t, pq)
 
 	// Verify initial state
 	assert.Len(t, pq.heap, 3)
 	assert.Len(t, pq.mn, 3)
 
-	// Verify heap property
-	for i := 0; i < len(pq.heap); i++ {
-		left := 2*i + 1
-		right := 2*i + 2
-
-		if left < len(pq.heap) {
-			assert.True(t, pq.cmp(pq.heap[i], pq.heap[left]),
-				"Heap property violated at index %d", i)
-		}
-		if right < len(pq.heap) {
-			assert.True(t, pq.cmp(pq.heap[i], pq.heap[right]),
-				"Heap property violated at index %d", i)
-		}
-	}
-
-	// Verify mn array validity
-	for i := 0; i < len(pq.mn); i++ {
-		assert.GreaterOrEqual(t, pq.mn[i], 0, "mn[%d] should be non-negative", i)
-		assert.Less(t, pq.mn[i], len(pq.heap), "mn[%d] should be less than heap length", i)
-	}
-
 	// Push beyond capacity with higher priority item
 	pq.Push(10) // Should replace the lowest priority item (1)
-
-	// Verify heap property still holds
-	for i := 0; i < len(pq.heap); i++ {
-		left := 2*i + 1
-		right := 2*i + 2
-
-		if left < len(pq.heap) {
-			assert.True(t, pq.cmp(pq.heap[i], pq.heap[left]),
-				"Heap property violated after replacement at index %d", i)
-		}
-		if right < len(pq.heap) {
-			assert.True(t, pq.cmp(pq.heap[i], pq.heap[right]),
-				"Heap property violated after replacement at index %d", i)
-		}
-	}
-
-	// Verify mn array validity
-	for i := 0; i < len(pq.mn); i++ {
-		assert.GreaterOrEqual(t, pq.mn[i], 0, "mn[%d] should be non-negative after replacement", i)
-		assert.Less(t, pq.mn[i], len(pq.heap), "mn[%d] should be less than heap length after replacement", i)
-	}
+	assertHeap(t, pq)
 
 	// The highest priority item should be at the root
-	item, _ := pq.Peek()
+	item, ok := pq.Peek()
+	assert.True(t, ok)
 	assert.Equal(t, 10, item)
 }

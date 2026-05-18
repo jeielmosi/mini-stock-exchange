@@ -40,19 +40,19 @@ func (pq *PriorityQueue[T]) Drop() {
 	if len(pq.heap) == 0 {
 		return
 	}
-	rm := len(pq.heap) - 1
-	item := pq.heap[rm]
-	pq.heap = pq.heap[:rm]
-	pq.mn = pq.mn[:rm]
-	if rm == 0 {
+	lastChild := len(pq.heap) - 1
+	item := pq.heap[lastChild]
+	pq.heap = pq.heap[:lastChild]
+	pq.mn = pq.mn[:lastChild]
+	if lastChild == 0 {
 		return
 	}
 
-	curr := rm
+	curr := lastChild
 	//update all the way to the root
 	for 0 < curr {
 		parent := (curr - 1) / 2
-		if pq.mn[parent] != rm {
+		if pq.mn[parent] != lastChild {
 			break
 		}
 		pq.updateMn(parent)
@@ -104,11 +104,12 @@ func (pq *PriorityQueue[T]) updateMn(root int) {
 func (pq *PriorityQueue[T]) toRoot(child int) {
 	for 0 < child {
 		parent := (child - 1) / 2
-		if !pq.cmp(pq.heap[child], pq.heap[parent]) {
+		if pq.cmp(pq.heap[parent], pq.heap[child]) {
 			break
 		}
 		pq.heap[parent], pq.heap[child] = pq.heap[child], pq.heap[parent]
 		pq.updateMn(parent)
+		pq.updateMn(child)
 		child = parent
 	}
 	for 0 < child {
